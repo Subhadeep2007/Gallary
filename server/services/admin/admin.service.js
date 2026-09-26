@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 import User from "../../models/user.model.js";
-import FileMetadata from "../../models/fileMetadata.model.js";
+import File from "../../models/file.model.js";
 
 
 // =========================================================
@@ -31,19 +31,12 @@ const createError = (
 const getSafeUserQuery = () => {
 
     return [
-
         "-password",
-
         "-refreshToken",
-
         "-emailVerificationOTP",
-
         "-emailVerificationOTPExpire",
-
         "-resetPasswordOTP",
-
         "-resetPasswordOTPExpire"
-
     ].join(" ");
 
 };
@@ -78,6 +71,7 @@ const getDashboardStats = async() => {
         deletedFiles
 
     ] = await Promise.all([
+
 
         // ========================================
         // USERS
@@ -138,41 +132,41 @@ const getDashboardStats = async() => {
         // FILES
         // ========================================
 
-        FileMetadata.countDocuments({
+        File.countDocuments({
 
-            type: "image",
-
-            isDeleted: false
-
-        }),
-
-
-        FileMetadata.countDocuments({
-
-            type: "video",
+            fileType: "image",
 
             isDeleted: false
 
         }),
 
 
-        FileMetadata.countDocuments({
+        File.countDocuments({
 
-            type: "pdf",
-
-            isDeleted: false
-
-        }),
-
-
-        FileMetadata.countDocuments({
+            fileType: "video",
 
             isDeleted: false
 
         }),
 
 
-        FileMetadata.countDocuments({
+        File.countDocuments({
+
+            fileType: "pdf",
+
+            isDeleted: false
+
+        }),
+
+
+        File.countDocuments({
+
+            isDeleted: false
+
+        }),
+
+
+        File.countDocuments({
 
             isDeleted: true
 
@@ -328,7 +322,12 @@ const getUserById = async(
 
     ] = await Promise.all([
 
-        FileMetadata.countDocuments({
+
+        // ========================================
+        // TOTAL ACTIVE FILES
+        // ========================================
+
+        File.countDocuments({
 
             user: user._id,
 
@@ -337,40 +336,56 @@ const getUserById = async(
         }),
 
 
-        FileMetadata.countDocuments({
+        // ========================================
+        // IMAGES
+        // ========================================
+
+        File.countDocuments({
 
             user: user._id,
 
-            type: "image",
+            fileType: "image",
 
             isDeleted: false
 
         }),
 
 
-        FileMetadata.countDocuments({
+        // ========================================
+        // VIDEOS
+        // ========================================
+
+        File.countDocuments({
 
             user: user._id,
 
-            type: "video",
+            fileType: "video",
 
             isDeleted: false
 
         }),
 
 
-        FileMetadata.countDocuments({
+        // ========================================
+        // PDFS
+        // ========================================
+
+        File.countDocuments({
 
             user: user._id,
 
-            type: "pdf",
+            fileType: "pdf",
 
             isDeleted: false
 
         }),
 
 
-        FileMetadata.countDocuments({
+        // ========================================
+        // DELETED FILES
+        // ========================================
+
+        File.countDocuments({
 
             user: user._id,
 
@@ -379,7 +394,11 @@ const getUserById = async(
         }),
 
 
-        FileMetadata.aggregate([
+        // ========================================
+        // STORAGE USED
+        // ========================================
+
+        File.aggregate([
 
             {
 
@@ -498,7 +517,7 @@ const activateUser = async(
 
 
     // ========================================
-    // ACTIVATE USER
+    // ACTIVATE
     // ========================================
 
     user.isActive =
@@ -605,11 +624,11 @@ const deactivateUser = async(
 // DELETE USER
 // =========================================================
 //
-// IMPORTANT:
-// Admin deletion is a soft delete.
-// Actual files live in the user's PWA/IndexedDB,
-// so the server cannot physically delete those
-// local files from the user's device.
+// Admin account deletion is a soft delete.
+// Actual Gallery files are stored locally
+// inside the user's PWA / IndexedDB.
+// Therefore the backend cannot physically
+// delete those local files.
 // =========================================================
 
 const deleteUser = async(
@@ -731,6 +750,11 @@ const getPlatformStatistics = async() => {
 
     ] = await Promise.all([
 
+
+        // ========================================
+        // USERS
+        // ========================================
+
         User.countDocuments({
 
             role: "user",
@@ -782,48 +806,56 @@ const getPlatformStatistics = async() => {
         }),
 
 
-        FileMetadata.countDocuments({
+        // ========================================
+        // FILES
+        // ========================================
+
+        File.countDocuments({
 
             isDeleted: false
 
         }),
 
 
-        FileMetadata.countDocuments({
+        File.countDocuments({
 
-            type: "image",
-
-            isDeleted: false
-
-        }),
-
-
-        FileMetadata.countDocuments({
-
-            type: "video",
+            fileType: "image",
 
             isDeleted: false
 
         }),
 
 
-        FileMetadata.countDocuments({
+        File.countDocuments({
 
-            type: "pdf",
+            fileType: "video",
 
             isDeleted: false
 
         }),
 
 
-        FileMetadata.countDocuments({
+        File.countDocuments({
+
+            fileType: "pdf",
+
+            isDeleted: false
+
+        }),
+
+
+        File.countDocuments({
 
             isDeleted: true
 
         }),
 
 
-        FileMetadata.aggregate([
+        // ========================================
+        // TOTAL STORAGE
+        // ========================================
+
+        File.aggregate([
 
             {
 

@@ -1,9 +1,5 @@
 import { Resend } from "resend";
 
-const resend = new Resend(
-    process.env.RESEND_API_KEY
-);
-
 const sendEmail = async({
     to,
     subject,
@@ -11,6 +7,10 @@ const sendEmail = async({
 }) => {
 
     try {
+
+        // ========================================
+        // CHECK REQUIRED DATA
+        // ========================================
 
         if (!to || !subject || !html) {
 
@@ -26,6 +26,10 @@ const sendEmail = async({
         }
 
 
+        // ========================================
+        // CHECK RESEND API KEY
+        // ========================================
+
         if (!process.env.RESEND_API_KEY) {
 
             const error =
@@ -39,6 +43,10 @@ const sendEmail = async({
 
         }
 
+
+        // ========================================
+        // CHECK EMAIL FROM
+        // ========================================
 
         if (!process.env.EMAIL_FROM) {
 
@@ -54,12 +62,28 @@ const sendEmail = async({
         }
 
 
+        // ========================================
+        // CREATE RESEND INSTANCE
+        // ========================================
+
+        const resend =
+            new Resend(
+                process.env.RESEND_API_KEY
+            );
+
+
+        // ========================================
+        // SEND EMAIL
+        // ========================================
+
         const { data, error } =
         await resend.emails.send({
 
             from: process.env.EMAIL_FROM,
 
-            to: [to],
+            to: [
+                to
+            ],
 
             subject,
 
@@ -67,6 +91,10 @@ const sendEmail = async({
 
         });
 
+
+        // ========================================
+        // RESEND ERROR
+        // ========================================
 
         if (error) {
 

@@ -21,6 +21,16 @@ import AdminLogin from "../pages/auth/AdminLogin.jsx";
 import AdminRegister from "../pages/auth/AdminRegister.jsx";
 
 // ========================================
+// USER PANEL
+// ========================================
+
+import UserLayout from "../layouts/UserLayout.jsx";
+import Gallery from "../pages/gallery/Gallery.jsx";
+import MyFiles from "../pages/gallery/MyFiles.jsx";
+import Favorites from "../pages/user/Favorites.jsx";
+import Trash from "../pages/user/Trash.jsx";
+
+// ========================================
 // LOADING SCREEN
 // ========================================
 
@@ -74,26 +84,58 @@ const GuestRoute = ({ children }) => {
 // ========================================
 
 const AuthenticatedRoute = ({ children }) => {
-  const { loading, isAuthenticated, user } = useAuth();
+  const {
+    loading,
+    isAuthenticated,
+    user,
+  } = useAuth();
 
-  if (loading) return <LoadingScreen />;
+  if (loading) {
+    return <LoadingScreen />;
+  }
 
   if (!isAuthenticated || !user) {
-    return <Navigate to={user?.role === "admin" ? "/admin/login" : "/login"} replace />;
+    return (
+      <Navigate
+        to={
+          user && user.role === "admin"
+            ? "/admin/login"
+            : "/login"
+        }
+        replace
+      />
+    );
   }
 
   return children;
 };
+
+// ========================================
+// ROLE ROUTE
+// ========================================
 
 const RoleRoute = ({ role, children }) => {
   const { user } = useAuth();
 
-  if (user?.role !== role) {
-    return <Navigate to={user?.role === "admin" ? "/admin/dashboard" : "/gallery"} replace />;
+  if (!user || user.role !== role) {
+    return (
+      <Navigate
+        to={
+          user && user.role === "admin"
+            ? "/admin/dashboard"
+            : "/gallery"
+        }
+        replace
+      />
+    );
   }
 
   return children;
 };
+
+// ========================================
+// SESSION HOME
+// ========================================
 
 const SessionHome = ({ admin = false }) => {
   const { user, logout } = useAuth();
@@ -106,14 +148,28 @@ const SessionHome = ({ admin = false }) => {
     <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-white">
       <section className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center">
         <h1 className="text-2xl font-semibold">
-          {admin ? "Administrator account" : "Your gallery account"}
+          {admin
+            ? "Administrator account"
+            : "Your gallery account"}
         </h1>
-        <p className="mt-3 text-slate-400">Signed in as {user?.name || user?.email}.</p>
+
+        <p className="mt-3 text-slate-400">
+          Signed in as{" "}
+          {user && (user.name || user.email)}.
+        </p>
+
         <div className="mt-7 flex flex-wrap justify-center gap-3">
-          <Link className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium hover:bg-violet-500" to="/change-password">
+          <Link
+            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium hover:bg-violet-500"
+            to="/change-password"
+          >
             Change password
           </Link>
-          <button className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-slate-500" onClick={handleLogout}>
+
+          <button
+            className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-slate-500"
+            onClick={handleLogout}
+          >
             Sign out
           </button>
         </div>
@@ -249,16 +305,50 @@ const AppRoutes = () => {
         }
       />
 
+      {/* ========================================
+          USER PANEL
+      ======================================== */}
+
       <Route
         path="/gallery"
         element={
           <AuthenticatedRoute>
             <RoleRoute role="user">
-              <SessionHome />
+              <UserLayout />
             </RoleRoute>
           </AuthenticatedRoute>
         }
-      />
+      >
+
+        {/* Dashboard */}
+        <Route
+          index
+          element={<Gallery />}
+        />
+
+        {/* My Files */}
+        <Route
+          path="files"
+          element={<MyFiles />}
+        />
+
+        {/* Favorites */}
+        <Route
+          path="favorites"
+          element={<Favorites />}
+        />
+
+        {/* Trash */}
+        <Route
+          path="trash"
+          element={<Trash />}
+        />
+
+      </Route>
+
+      {/* ========================================
+          ADMIN PANEL
+      ======================================== */}
 
       <Route
         path="/admin/dashboard"
@@ -273,7 +363,7 @@ const AppRoutes = () => {
 
       {/* ========================================
           FUTURE USER PANEL
-          
+
           Dashboard
           Gallery
           Favorites
@@ -285,7 +375,7 @@ const AppRoutes = () => {
 
       {/* ========================================
           FUTURE ADMIN PANEL
-          
+
           AdminDashboard
           Users
           UserDetails

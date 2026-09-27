@@ -15,11 +15,16 @@ import {
     File,
     Image,
     Video,
+    FileAudio,
     FileText,
     Trash2,
     RefreshCw,
-    LayoutDashboard,
-    ArrowRight
+    ArrowRight,
+    HardDrive,
+    CheckCircle2,
+    Activity,
+    Database,
+    UserRound
 } from "lucide-react";
 
 import {
@@ -45,9 +50,273 @@ const initialStats = {
         total: 0,
         images: 0,
         videos: 0,
+        audios: 0,
         pdfs: 0,
-        deleted: 0
+        deleted: 0,
+        storageUsed: 0
     }
+
+};
+
+
+const unwrapDashboardData = (
+    response
+) => {
+
+    if (
+        response &&
+        response.users
+    ) {
+
+        return response;
+
+    }
+
+
+    if (
+        response &&
+        response.data &&
+        response.data.users
+    ) {
+
+        return response.data;
+
+    }
+
+
+    if (
+        response &&
+        response.data &&
+        response.data.data &&
+        response.data.data.users
+    ) {
+
+        return response.data.data;
+
+    }
+
+
+    return null;
+
+};
+
+
+const getErrorMessage = (
+    error
+) => {
+
+    if (
+        error &&
+        error.response &&
+        error.response.data &&
+        error.response.data.message
+    ) {
+
+        return error.response.data.message;
+
+    }
+
+
+    if (
+        error &&
+        error.message
+    ) {
+
+        return error.message;
+
+    }
+
+
+    return "Failed to load admin dashboard.";
+
+};
+
+
+const formatNumber = (
+    value
+) => {
+
+    if (
+        typeof value !== "number"
+    ) {
+
+        return "0";
+
+    }
+
+
+    return value.toLocaleString(
+        "en-IN"
+    );
+
+};
+
+
+const formatStorage = (
+    bytes
+) => {
+
+    if (
+        typeof bytes !== "number" ||
+        bytes <= 0
+    ) {
+
+        return "0 B";
+
+    }
+
+
+    const units = [
+        "B",
+        "KB",
+        "MB",
+        "GB",
+        "TB"
+    ];
+
+    let size = bytes;
+    let index = 0;
+
+    while (
+        size >= 1024 &&
+        index < units.length - 1
+    ) {
+
+        size = size / 1024;
+        index = index + 1;
+
+    }
+
+
+    return (
+        size.toFixed(1) +
+        " " +
+        units[index]
+    );
+
+};
+
+
+const StatCard = ({
+    title,
+    value,
+    description,
+    icon,
+    href
+}) => {
+
+    const content = (
+
+        <div
+            className="
+                group
+                h-full
+                rounded-2xl
+                border
+                border-slate-200
+                bg-white
+                p-4
+                shadow-sm
+                transition
+                duration-200
+                hover:-translate-y-0.5
+                hover:border-indigo-200
+                hover:shadow-md
+                sm:p-5
+            "
+        >
+
+            <div
+                className="
+                    flex
+                    items-start
+                    justify-between
+                    gap-3
+                "
+            >
+
+                <div className="min-w-0">
+
+                    <p
+                        className="
+                            text-xs
+                            font-medium
+                            text-slate-500
+                        "
+                    >
+                        {title}
+                    </p>
+
+
+                    <p
+                        className="
+                            mt-2
+                            truncate
+                            text-2xl
+                            font-bold
+                            tracking-tight
+                            text-slate-900
+                            sm:text-3xl
+                        "
+                    >
+                        {value}
+                    </p>
+
+
+                    <p
+                        className="
+                            mt-2
+                            text-xs
+                            leading-5
+                            text-slate-500
+                        "
+                    >
+                        {description}
+                    </p>
+
+                </div>
+
+
+                <div
+                    className="
+                        flex
+                        h-10
+                        w-10
+                        shrink-0
+                        items-center
+                        justify-center
+                        rounded-xl
+                        border
+                        border-indigo-100
+                        bg-indigo-50
+                        text-indigo-600
+                    "
+                >
+                    {icon}
+                </div>
+
+            </div>
+
+        </div>
+
+    );
+
+
+    if (href) {
+
+        return (
+            <Link
+                to={href}
+                className="block h-full"
+            >
+                {content}
+            </Link>
+        );
+
+    }
+
+
+    return content;
 
 };
 
@@ -57,79 +326,59 @@ const AdminDashboard = () => {
     const [
         stats,
         setStats
-    ] = useState(initialStats);
+    ] = useState(
+        initialStats
+    );
 
 
     const [
         loading,
         setLoading
-    ] = useState(true);
+    ] = useState(
+        true
+    );
 
 
-    // ==========================================
-    // LOAD DASHBOARD
-    // ==========================================
-
-    const loadDashboard = async () => {
+    const loadDashboard = async() => {
 
         try {
 
             setLoading(true);
 
+
             const response =
                 await getAdminDashboard();
 
 
-            let dashboardData = null;
+            const dashboardData =
+                unwrapDashboardData(
+                    response
+                );
 
 
             if (
-                response &&
-                response.users
+                dashboardData
             ) {
-
-                dashboardData =
-                    response;
-
-            } else if (
-                response &&
-                response.data &&
-                response.data.users
-            ) {
-
-                dashboardData =
-                    response.data;
-
-            } else if (
-                response &&
-                response.data &&
-                response.data.data &&
-                response.data.data.users
-            ) {
-
-                dashboardData =
-                    response.data.data;
-            }
-
-
-            if (dashboardData) {
 
                 setStats({
-                    ...initialStats,
-                    ...dashboardData,
+
                     users: {
                         ...initialStats.users,
                         ...dashboardData.users
                     },
+
                     files: {
                         ...initialStats.files,
                         ...dashboardData.files
                     }
+
                 });
 
             }
 
-        } catch (error) {
+        } catch (
+            error
+        ) {
 
             console.error(
                 "Admin Dashboard Error:",
@@ -137,35 +386,20 @@ const AdminDashboard = () => {
             );
 
 
-            let message =
-                "Failed to load dashboard";
-
-
-            if (
-                error &&
-                error.response &&
-                error.response.data &&
-                error.response.data.message
-            ) {
-
-                message =
-                    error.response.data.message;
-            }
-
-
-            toast.error(message);
+            toast.error(
+                getErrorMessage(
+                    error
+                )
+            );
 
         } finally {
 
             setLoading(false);
 
         }
+
     };
 
-
-    // ==========================================
-    // INITIAL LOAD
-    // ==========================================
 
     useEffect(() => {
 
@@ -174,924 +408,614 @@ const AdminDashboard = () => {
     }, []);
 
 
-    // ==========================================
-    // FORMAT NUMBER
-    // ==========================================
+    const userCards = [
 
-    const formatNumber = (value) => {
+        {
+            title: "Total Users",
+            value: loading
+                ? "—"
+                : formatNumber(
+                    stats.users.total
+                ),
+            description: "Registered user accounts",
+            icon: <Users size={18} />,
+            href: "/admin/dashboard/users"
+        },
 
-        if (
-            typeof value !== "number"
-        ) {
+        {
+            title: "Active Users",
+            value: loading
+                ? "—"
+                : formatNumber(
+                    stats.users.active
+                ),
+            description: "Currently active accounts",
+            icon: <UserCheck size={18} />,
+            href: "/admin/dashboard/users"
+        },
 
-            return "0";
+        {
+            title: "Inactive Users",
+            value: loading
+                ? "—"
+                : formatNumber(
+                    stats.users.inactive
+                ),
+            description: "Deactivated accounts",
+            icon: <UserX size={18} />,
+            href: "/admin/dashboard/users"
+        },
+
+        {
+            title: "Verified Users",
+            value: loading
+                ? "—"
+                : formatNumber(
+                    stats.users.verified
+                ),
+            description: "Email verified accounts",
+            icon: <CheckCircle2 size={18} />,
+            href: "/admin/dashboard/users"
         }
 
-        return value.toLocaleString(
-            "en-IN"
-        );
-    };
+    ];
 
 
-    // ==========================================
-    // STAT CARD
-    // ==========================================
+    const fileCards = [
 
-    const StatCard = ({
-        title,
-        value,
-        icon,
-        description,
-        href
-    }) => {
+        {
+            title: "Total Files",
+            value: loading
+                ? "—"
+                : formatNumber(
+                    stats.files.total
+                ),
+            description: "Active gallery files",
+            icon: <File size={18} />
+        },
 
-        return (
+        {
+            title: "Images",
+            value: loading
+                ? "—"
+                : formatNumber(
+                    stats.files.images
+                ),
+            description: "Image files",
+            icon: <Image size={18} />
+        },
 
-            <Link
-                to={href}
-                className="
-                    group
-                    rounded-2xl
-                    border
-                    border-white/10
-                    bg-white/[0.025]
-                    p-5
-                    transition
-                    duration-200
-                    hover:-translate-y-1
-                    hover:border-cyan-400/20
-                    hover:bg-white/[0.04]
-                "
-            >
+        {
+            title: "Videos",
+            value: loading
+                ? "—"
+                : formatNumber(
+                    stats.files.videos
+                ),
+            description: "Video files",
+            icon: <Video size={18} />
+        },
 
-                <div className="
-                    flex
-                    items-start
-                    justify-between
-                    gap-4
-                ">
+        {
+            title: "Audio",
+            value: loading
+                ? "—"
+                : formatNumber(
+                    stats.files.audios
+                ),
+            description: "Audio files",
+            icon: <FileAudio size={18} />
+        },
 
-                    <div className="
-                        flex
-                        h-11
-                        w-11
-                        items-center
-                        justify-center
-                        rounded-xl
-                        border
-                        border-cyan-400/10
-                        bg-cyan-400/5
-                        text-cyan-300
-                    ">
+        {
+            title: "PDF Files",
+            value: loading
+                ? "—"
+                : formatNumber(
+                    stats.files.pdfs
+                ),
+            description: "PDF documents",
+            icon: <FileText size={18} />
+        },
 
-                        {icon}
-
-                    </div>
-
-
-                    <ArrowRight
-                        size={17}
-                        className="
-                            text-slate-700
-                            transition
-                            group-hover:translate-x-1
-                            group-hover:text-cyan-400
-                        "
-                    />
-
-                </div>
-
-
-                <p className="
-                    mt-5
-                    text-xs
-                    font-medium
-                    text-slate-500
-                ">
-                    {title}
-                </p>
-
-
-                <p className="
-                    mt-2
-                    text-3xl
-                    font-black
-                    tracking-tight
-                    text-white
-                ">
-                    {
-                        loading
-                            ? "—"
-                            : formatNumber(value)
-                    }
-                </p>
-
-
-                <p className="
-                    mt-2
-                    text-xs
-                    text-slate-600
-                ">
-                    {description}
-                </p>
-
-            </Link>
-
-        );
-    };
-
-
-    // ==========================================
-    // PROGRESS ITEM
-    // ==========================================
-
-    const ProgressItem = ({
-        label,
-        value,
-        total,
-        icon
-    }) => {
-
-        let percentage = 0;
-
-
-        if (
-            total > 0
-        ) {
-
-            percentage =
-                Math.round(
-                    (value / total) * 100
-                );
+        {
+            title: "Trash",
+            value: loading
+                ? "—"
+                : formatNumber(
+                    stats.files.deleted
+                ),
+            description: "Files in user trash",
+            icon: <Trash2 size={18} />
         }
 
-
-        return (
-
-            <div>
-
-                <div className="
-                    flex
-                    items-center
-                    justify-between
-                    gap-4
-                ">
-
-                    <div className="
-                        flex
-                        items-center
-                        gap-3
-                    ">
-
-                        <div className="
-                            flex
-                            h-9
-                            w-9
-                            items-center
-                            justify-center
-                            rounded-lg
-                            bg-white/[0.04]
-                            text-slate-400
-                        ">
-
-                            {icon}
-
-                        </div>
-
-
-                        <span className="
-                            text-sm
-                            font-medium
-                            text-slate-300
-                        ">
-                            {label}
-                        </span>
-
-                    </div>
-
-
-                    <span className="
-                        text-sm
-                        font-bold
-                        text-white
-                    ">
-                        {
-                            loading
-                                ? "—"
-                                : formatNumber(value)
-                        }
-                    </span>
-
-                </div>
-
-
-                <div className="
-                    mt-3
-                    h-1.5
-                    overflow-hidden
-                    rounded-full
-                    bg-white/[0.05]
-                ">
-
-                    <div
-                        className="
-                            h-full
-                            rounded-full
-                            bg-cyan-400
-                            transition-all
-                            duration-500
-                        "
-                        style={{
-                            width:
-                                loading
-                                    ? "0%"
-                                    : `${percentage}%`
-                        }}
-                    />
-
-                </div>
-
-
-                <p className="
-                    mt-1.5
-                    text-[11px]
-                    text-slate-600
-                ">
-                    {percentage}% of active files
-                </p>
-
-            </div>
-
-        );
-    };
+    ];
 
 
     return (
 
-        <div className="
-            mx-auto
-            w-full
-            max-w-7xl
-        ">
+        <div
+            className="
+                min-h-full
+                w-full
+                overflow-x-hidden
+                rounded-3xl
+                bg-slate-50
+                p-3
+                text-slate-900
+                sm:p-5
+                lg:p-6
+            "
+        >
 
-
-            {/* ========================================
+            {/* =================================================
                 HEADER
-            ======================================== */}
+            ================================================= */}
 
-            <div className="
-                mb-8
-                flex
-                flex-col
-                gap-4
-                sm:flex-row
-                sm:items-end
-                sm:justify-between
-            ">
+            <section
+                className="
+                    rounded-3xl
+                    border
+                    border-slate-200
+                    bg-white
+                    p-4
+                    shadow-sm
+                    sm:p-6
+                "
+            >
 
-                <div>
-
-                    <div className="
-                        mb-2
-                        flex
-                        items-center
-                        gap-2
-                    ">
-
-                        <LayoutDashboard
-                            size={16}
-                            className="text-cyan-400"
-                        />
-
-                        <span className="
-                            text-xs
-                            font-semibold
-                            uppercase
-                            tracking-[0.2em]
-                            text-cyan-400
-                        ">
-                            Administration
-                        </span>
-
-                    </div>
-
-
-                    <h1 className="
-                        text-3xl
-                        font-black
-                        tracking-tight
-                        text-white
-                    ">
-                        Admin Dashboard
-                    </h1>
-
-
-                    <p className="
-                        mt-2
-                        max-w-2xl
-                        text-sm
-                        leading-6
-                        text-slate-500
-                    ">
-                        Overview of users and files across
-                        the Digital Gallery platform.
-                    </p>
-
-                </div>
-
-
-                <button
-                    type="button"
-                    onClick={loadDashboard}
-                    disabled={loading}
+                <div
                     className="
-                        inline-flex
-                        items-center
-                        justify-center
-                        gap-2
-                        rounded-xl
-                        border
-                        border-white/10
-                        bg-white/[0.03]
-                        px-4
-                        py-2.5
-                        text-sm
-                        font-semibold
-                        text-slate-300
-                        transition
-                        hover:border-cyan-400/20
-                        hover:text-cyan-300
-                        disabled:cursor-not-allowed
-                        disabled:opacity-50
+                        flex
+                        flex-col
+                        gap-5
+                        lg:flex-row
+                        lg:items-center
+                        lg:justify-between
                     "
                 >
 
-                    <RefreshCw
-                        size={16}
-                        className={
-                            loading
-                                ? "animate-spin"
-                                : ""
-                        }
-                    />
+                    <div className="min-w-0">
 
-                    {
-                        loading
-                            ? "Refreshing..."
-                            : "Refresh"
-                    }
+                        <div
+                            className="
+                                inline-flex
+                                items-center
+                                gap-2
+                                rounded-full
+                                border
+                                border-indigo-100
+                                bg-indigo-50
+                                px-3
+                                py-1.5
+                                text-[10px]
+                                font-bold
+                                uppercase
+                                tracking-[0.2em]
+                                text-indigo-600
+                            "
+                        >
 
-                </button>
+                            <ShieldCheck size={13} />
 
-            </div>
+                            Admin Overview
 
-
-            {/* ========================================
-                USER STATISTICS
-            ======================================== */}
-
-            <div className="
-                mb-7
-            ">
-
-                <div className="
-                    mb-4
-                    flex
-                    items-center
-                    justify-between
-                ">
-
-                    <div>
-
-                        <h2 className="
-                            text-lg
-                            font-bold
-                            text-white
-                        ">
-                            Users
-                        </h2>
+                        </div>
 
 
-                        <p className="
-                            mt-1
-                            text-xs
-                            text-slate-600
-                        ">
-                            User account overview
+                        <h1
+                            className="
+                                mt-4
+                                text-2xl
+                                font-bold
+                                tracking-tight
+                                text-slate-900
+                                sm:text-3xl
+                                lg:text-4xl
+                            "
+                        >
+                            Digital Gallery
+                        </h1>
+
+
+                        <p
+                            className="
+                                mt-2
+                                max-w-2xl
+                                text-sm
+                                leading-6
+                                text-slate-500
+                            "
+                        >
+                            Manage platform accounts and monitor
+                            gallery activity from one place.
                         </p>
 
                     </div>
 
 
-                    <Link
-                        to="/admin/users"
+                    <button
+                        type="button"
+                        onClick={loadDashboard}
+                        disabled={loading}
                         className="
                             inline-flex
+                            w-full
+                            items-center
+                            justify-center
+                            gap-2
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-white
+                            px-4
+                            py-2.5
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                            shadow-sm
+                            transition
+                            hover:border-indigo-200
+                            hover:bg-indigo-50
+                            hover:text-indigo-600
+                            disabled:cursor-not-allowed
+                            disabled:opacity-50
+                            sm:w-auto
+                        "
+                    >
+
+                        <RefreshCw
+                            size={16}
+                            className={
+                                loading
+                                    ? "animate-spin"
+                                    : ""
+                            }
+                        />
+
+                        {loading
+                            ? "Refreshing..."
+                            : "Refresh"}
+
+                    </button>
+
+                </div>
+
+            </section>
+
+
+            {/* =================================================
+                USER STATISTICS
+            ================================================= */}
+
+            <section className="mt-5 sm:mt-6">
+
+                <div
+                    className="
+                        mb-4
+                        flex
+                        flex-col
+                        gap-3
+                        sm:flex-row
+                        sm:items-end
+                        sm:justify-between
+                    "
+                >
+
+                    <div>
+
+                        <p
+                            className="
+                                text-[10px]
+                                font-bold
+                                uppercase
+                                tracking-[0.2em]
+                                text-indigo-600
+                            "
+                        >
+                            Accounts
+                        </p>
+
+
+                        <h2
+                            className="
+                                mt-1
+                                text-lg
+                                font-bold
+                                text-slate-900
+                            "
+                        >
+                            User Statistics
+                        </h2>
+
+                    </div>
+
+
+                    <Link
+                        to="/admin/dashboard/users"
+                        className="
+                            inline-flex
+                            w-fit
                             items-center
                             gap-1.5
                             text-xs
                             font-semibold
-                            text-cyan-400
+                            text-slate-500
                             transition
-                            hover:text-cyan-300
+                            hover:text-indigo-600
                         "
                     >
                         Manage Users
-
                         <ArrowRight size={14} />
-
                     </Link>
 
                 </div>
 
 
-                <div className="
-                    grid
-                    gap-4
-                    sm:grid-cols-2
-                    xl:grid-cols-4
-                ">
+                <div
+                    className="
+                        grid
+                        gap-3
+                        sm:grid-cols-2
+                        xl:grid-cols-4
+                    "
+                >
 
-                    <StatCard
-                        title="Total Users"
-                        value={
-                            stats.users.total
-                        }
-                        icon={
-                            <Users size={19} />
-                        }
-                        description="
-                            Registered user accounts
-                        "
-                        href="/admin/users"
-                    />
+                    {userCards.map(
+                        (card) => (
 
+                            <StatCard
+                                key={card.title}
+                                title={card.title}
+                                value={card.value}
+                                description={
+                                    card.description
+                                }
+                                icon={card.icon}
+                                href={card.href}
+                            />
 
-                    <StatCard
-                        title="Active Users"
-                        value={
-                            stats.users.active
-                        }
-                        icon={
-                            <UserCheck size={19} />
-                        }
-                        description="
-                            Currently active accounts
-                        "
-                        href="/admin/users"
-                    />
-
-
-                    <StatCard
-                        title="Inactive Users"
-                        value={
-                            stats.users.inactive
-                        }
-                        icon={
-                            <UserX size={19} />
-                        }
-                        description="
-                            Currently inactive accounts
-                        "
-                        href="/admin/users"
-                    />
-
-
-                    <StatCard
-                        title="Verified Users"
-                        value={
-                            stats.users.verified
-                        }
-                        icon={
-                            <ShieldCheck size={19} />
-                        }
-                        description="
-                            Email verified accounts
-                        "
-                        href="/admin/users"
-                    />
+                        )
+                    )}
 
                 </div>
 
-            </div>
+            </section>
 
 
-            {/* ========================================
-                FILE STATISTICS
-            ======================================== */}
+            {/* =================================================
+                GALLERY STATISTICS
+            ================================================= */}
 
-            <div className="
-                mb-7
-            ">
+            <section className="mt-6">
 
-                <div className="
-                    mb-4
-                ">
+                <div className="mb-4">
 
-                    <h2 className="
-                        text-lg
-                        font-bold
-                        text-white
-                    ">
-                        Gallery Files
-                    </h2>
-
-
-                    <p className="
-                        mt-1
-                        text-xs
-                        text-slate-600
-                    ">
-                        Platform file overview
+                    <p
+                        className="
+                            text-[10px]
+                            font-bold
+                            uppercase
+                            tracking-[0.2em]
+                            text-indigo-600
+                        "
+                    >
+                        Gallery
                     </p>
 
+
+                    <h2
+                        className="
+                            mt-1
+                            text-lg
+                            font-bold
+                            text-slate-900
+                        "
+                    >
+                        File Statistics
+                    </h2>
+
                 </div>
 
 
-                <div className="
+                <div
+                    className="
+                        grid
+                        gap-3
+                        sm:grid-cols-2
+                        xl:grid-cols-3
+                    "
+                >
+
+                    {fileCards.map(
+                        (card) => (
+
+                            <StatCard
+                                key={card.title}
+                                title={card.title}
+                                value={card.value}
+                                description={
+                                    card.description
+                                }
+                                icon={card.icon}
+                            />
+
+                        )
+                    )}
+
+                </div>
+
+            </section>
+
+
+            {/* =================================================
+                ACCOUNT HEALTH + STORAGE
+            ================================================= */}
+
+            <section
+                className="
+                    mt-6
                     grid
                     gap-4
-                    sm:grid-cols-2
-                    xl:grid-cols-4
-                ">
+                    lg:grid-cols-2
+                "
+            >
 
-                    <StatCard
-                        title="Total Files"
-                        value={
-                            stats.files.total
-                        }
-                        icon={
-                            <File size={19} />
-                        }
-                        description="
-                            Active gallery files
-                        "
-                        href="/admin/statistics"
-                    />
+                {/* ACCOUNT HEALTH */}
 
-
-                    <StatCard
-                        title="Images"
-                        value={
-                            stats.files.images
-                        }
-                        icon={
-                            <Image size={19} />
-                        }
-                        description="
-                            Image files in gallery
-                        "
-                        href="/admin/statistics"
-                    />
-
-
-                    <StatCard
-                        title="Videos"
-                        value={
-                            stats.files.videos
-                        }
-                        icon={
-                            <Video size={19} />
-                        }
-                        description="
-                            Video files in gallery
-                        "
-                        href="/admin/statistics"
-                    />
-
-
-                    <StatCard
-                        title="PDF Files"
-                        value={
-                            stats.files.pdfs
-                        }
-                        icon={
-                            <FileText size={19} />
-                        }
-                        description="
-                            PDF documents in gallery
-                        "
-                        href="/admin/statistics"
-                    />
-
-                </div>
-
-            </div>
-
-
-            {/* ========================================
-                DETAIL AREA
-            ======================================== */}
-
-            <div className="
-                grid
-                gap-6
-                lg:grid-cols-2
-            ">
-
-
-                {/* ====================================
-                    USER ACCOUNT STATUS
-                ==================================== */}
-
-                <div className="
-                    rounded-3xl
-                    border
-                    border-white/10
-                    bg-white/[0.025]
-                    p-6
-                ">
-
-                    <div className="
-                        mb-6
-                        flex
-                        items-center
-                        justify-between
-                    ">
-
-                        <div>
-
-                            <h2 className="
-                                text-base
-                                font-bold
-                                text-white
-                            ">
-                                User Account Status
-                            </h2>
-
-
-                            <p className="
-                                mt-1
-                                text-xs
-                                text-slate-600
-                            ">
-                                Current account distribution
-                            </p>
-
-                        </div>
-
-
-                        <Users
-                            size={18}
-                            className="text-cyan-400"
-                        />
-
-                    </div>
-
-
-                    <div className="
-                        space-y-5
-                    ">
-
-
-                        <ProgressItem
-                            label="Active"
-                            value={
-                                stats.users.active
-                            }
-                            total={
-                                stats.users.total
-                            }
-                            icon={
-                                <UserCheck size={17} />
-                            }
-                        />
-
-
-                        <ProgressItem
-                            label="Inactive"
-                            value={
-                                stats.users.inactive
-                            }
-                            total={
-                                stats.users.total
-                            }
-                            icon={
-                                <UserX size={17} />
-                            }
-                        />
-
-
-                        <ProgressItem
-                            label="Verified"
-                            value={
-                                stats.users.verified
-                            }
-                            total={
-                                stats.users.total
-                            }
-                            icon={
-                                <ShieldCheck size={17} />
-                            }
-                        />
-
-                    </div>
-
-
-                    <div className="
-                        mt-6
+                <div
+                    className="
                         rounded-2xl
                         border
-                        border-red-400/10
-                        bg-red-400/[0.025]
+                        border-slate-200
+                        bg-white
                         p-4
-                    ">
+                        shadow-sm
+                        sm:p-5
+                    "
+                >
 
-                        <div className="
+                    <div
+                        className="
                             flex
                             items-center
                             justify-between
-                        ">
+                            gap-3
+                        "
+                    >
 
-                            <div className="
-                                flex
-                                items-center
-                                gap-3
-                            ">
+                        <div>
 
-                                <Trash2
+                            <div
+                                className="
+                                    flex
+                                    items-center
+                                    gap-2
+                                "
+                            >
+
+                                <Activity
                                     size={17}
-                                    className="text-red-300"
+                                    className="text-emerald-600"
                                 />
 
-                                <div>
-
-                                    <p className="
-                                        text-xs
-                                        text-slate-500
-                                    ">
-                                        Deleted Accounts
-                                    </p>
-
-                                    <p className="
-                                        mt-1
-                                        text-lg
+                                <h3
+                                    className="
+                                        text-sm
                                         font-bold
-                                        text-white
-                                    ">
-                                        {
-                                            loading
-                                                ? "—"
-                                                : formatNumber(
-                                                    stats.users.deleted
-                                                )
-                                        }
-                                    </p>
-
-                                </div>
+                                        text-slate-900
+                                    "
+                                >
+                                    Account Health
+                                </h3>
 
                             </div>
 
-                        </div>
 
-                    </div>
-
-                </div>
-
-
-                {/* ====================================
-                    FILE BREAKDOWN
-                ==================================== */}
-
-                <div className="
-                    rounded-3xl
-                    border
-                    border-white/10
-                    bg-white/[0.025]
-                    p-6
-                ">
-
-                    <div className="
-                        mb-6
-                        flex
-                        items-center
-                        justify-between
-                    ">
-
-                        <div>
-
-                            <h2 className="
-                                text-base
-                                font-bold
-                                text-white
-                            ">
-                                File Breakdown
-                            </h2>
-
-
-                            <p className="
-                                mt-1
-                                text-xs
-                                text-slate-600
-                            ">
-                                Active gallery content
-                            </p>
-
-                        </div>
-
-
-                        <File
-                            size={18}
-                            className="text-cyan-400"
-                        />
-
-                    </div>
-
-
-                    <div className="
-                        space-y-5
-                    ">
-
-
-                        <ProgressItem
-                            label="Images"
-                            value={
-                                stats.files.images
-                            }
-                            total={
-                                stats.files.total
-                            }
-                            icon={
-                                <Image size={17} />
-                            }
-                        />
-
-
-                        <ProgressItem
-                            label="Videos"
-                            value={
-                                stats.files.videos
-                            }
-                            total={
-                                stats.files.total
-                            }
-                            icon={
-                                <Video size={17} />
-                            }
-                        />
-
-
-                        <ProgressItem
-                            label="PDF Documents"
-                            value={
-                                stats.files.pdfs
-                            }
-                            total={
-                                stats.files.total
-                            }
-                            icon={
-                                <FileText size={17} />
-                            }
-                        />
-
-                    </div>
-
-
-                    <div className="
-                        mt-6
-                        rounded-2xl
-                        border
-                        border-red-400/10
-                        bg-red-400/[0.025]
-                        p-4
-                    ">
-
-                        <div className="
-                            flex
-                            items-center
-                            gap-3
-                        ">
-
-                            <Trash2
-                                size={17}
-                                className="text-red-300"
-                            />
-
-                            <div>
-
-                                <p className="
+                            <p
+                                className="
+                                    mt-1
                                     text-xs
                                     text-slate-500
-                                ">
-                                    Deleted Files
-                                </p>
+                                "
+                            >
+                                Active vs inactive accounts
+                            </p>
 
-                                <p className="
-                                    mt-1
-                                    text-lg
+                        </div>
+
+
+                        <UserRound
+                            size={18}
+                            className="text-slate-300"
+                        />
+
+                    </div>
+
+
+                    <div
+                        className="
+                            mt-5
+                            grid
+                            grid-cols-2
+                            gap-3
+                        "
+                    >
+
+                        <div
+                            className="
+                                rounded-xl
+                                border
+                                border-emerald-100
+                                bg-emerald-50
+                                p-4
+                            "
+                        >
+
+                            <p
+                                className="
+                                    text-xs
+                                    font-medium
+                                    text-slate-500
+                                "
+                            >
+                                Active
+                            </p>
+
+
+                            <p
+                                className="
+                                    mt-2
+                                    text-2xl
                                     font-bold
-                                    text-white
-                                ">
-                                    {
-                                        loading
-                                            ? "—"
-                                            : formatNumber(
-                                                stats.files.deleted
-                                            )
-                                    }
-                                </p>
+                                    text-emerald-700
+                                "
+                            >
+                                {loading
+                                    ? "—"
+                                    : formatNumber(
+                                        stats.users.active
+                                    )}
+                            </p>
 
-                            </div>
+                        </div>
+
+
+                        <div
+                            className="
+                                rounded-xl
+                                border
+                                border-amber-100
+                                bg-amber-50
+                                p-4
+                            "
+                        >
+
+                            <p
+                                className="
+                                    text-xs
+                                    font-medium
+                                    text-slate-500
+                                "
+                            >
+                                Inactive
+                            </p>
+
+
+                            <p
+                                className="
+                                    mt-2
+                                    text-2xl
+                                    font-bold
+                                    text-amber-700
+                                "
+                            >
+                                {loading
+                                    ? "—"
+                                    : formatNumber(
+                                        stats.users.inactive
+                                    )}
+                            </p>
 
                         </div>
 
@@ -1099,164 +1023,381 @@ const AdminDashboard = () => {
 
                 </div>
 
-            </div>
 
+                {/* STORAGE */}
 
-            {/* ========================================
-                BOTTOM QUICK LINKS
-            ======================================== */}
-
-            <div className="
-                mt-6
-                grid
-                gap-4
-                sm:grid-cols-2
-            ">
-
-
-                <Link
-                    to="/admin/users"
+                <div
                     className="
-                        flex
-                        items-center
-                        justify-between
                         rounded-2xl
                         border
-                        border-white/10
-                        bg-white/[0.02]
-                        p-5
-                        transition
-                        hover:border-cyan-400/20
-                        hover:bg-white/[0.04]
+                        border-slate-200
+                        bg-white
+                        p-4
+                        shadow-sm
+                        sm:p-5
                     "
                 >
 
-                    <div className="
-                        flex
-                        items-center
-                        gap-4
-                    ">
-
-                        <div className="
+                    <div
+                        className="
                             flex
-                            h-10
-                            w-10
                             items-center
-                            justify-center
-                            rounded-xl
-                            bg-cyan-400/5
-                            text-cyan-300
-                        ">
-
-                            <Users size={18} />
-
-                        </div>
-
+                            justify-between
+                            gap-3
+                        "
+                    >
 
                         <div>
 
-                            <p className="
-                                text-sm
-                                font-bold
-                                text-white
-                            ">
-                                Manage Users
-                            </p>
+                            <div
+                                className="
+                                    flex
+                                    items-center
+                                    gap-2
+                                "
+                            >
 
-                            <p className="
-                                mt-1
-                                text-xs
-                                text-slate-600
-                            ">
-                                View and manage user accounts
+                                <Database
+                                    size={17}
+                                    className="text-indigo-600"
+                                />
+
+                                <h3
+                                    className="
+                                        text-sm
+                                        font-bold
+                                        text-slate-900
+                                    "
+                                >
+                                    Storage
+                                </h3>
+
+                            </div>
+
+
+                            <p
+                                className="
+                                    mt-1
+                                    text-xs
+                                    text-slate-500
+                                "
+                            >
+                                Active file metadata size
                             </p>
 
                         </div>
+
+
+                        <HardDrive
+                            size={18}
+                            className="text-slate-300"
+                        />
 
                     </div>
 
 
-                    <ArrowRight
-                        size={17}
-                        className="text-slate-600"
-                    />
-
-                </Link>
-
-
-                <Link
-                    to="/admin/statistics"
-                    className="
-                        flex
-                        items-center
-                        justify-between
-                        rounded-2xl
-                        border
-                        border-white/10
-                        bg-white/[0.02]
-                        p-5
-                        transition
-                        hover:border-cyan-400/20
-                        hover:bg-white/[0.04]
-                    "
-                >
-
-                    <div className="
-                        flex
-                        items-center
-                        gap-4
-                    ">
-
-                        <div className="
-                            flex
-                            h-10
-                            w-10
-                            items-center
-                            justify-center
+                    <div
+                        className="
+                            mt-5
                             rounded-xl
-                            bg-cyan-400/5
-                            text-cyan-300
-                        ">
+                            border
+                            border-indigo-100
+                            bg-indigo-50
+                            p-4
+                        "
+                    >
 
-                            <File size={18} />
-
-                        </div>
-
-
-                        <div>
-
-                            <p className="
-                                text-sm
-                                font-bold
-                                text-white
-                            ">
-                                Platform Statistics
-                            </p>
-
-                            <p className="
-                                mt-1
+                        <p
+                            className="
                                 text-xs
-                                text-slate-600
-                            ">
-                                View detailed gallery statistics
-                            </p>
+                                font-medium
+                                text-slate-500
+                            "
+                        >
+                            Metadata size
+                        </p>
 
-                        </div>
+
+                        <p
+                            className="
+                                mt-2
+                                text-2xl
+                                font-bold
+                                text-slate-900
+                                sm:text-3xl
+                            "
+                        >
+                            {loading
+                                ? "—"
+                                : formatStorage(
+                                    stats.files.storageUsed
+                                )}
+                        </p>
+
+
+                        <p
+                            className="
+                                mt-2
+                                text-xs
+                                leading-5
+                                text-slate-500
+                            "
+                        >
+                            Calculated from file metadata
+                            stored in MongoDB.
+                        </p>
 
                     </div>
 
+                </div>
 
-                    <ArrowRight
-                        size={17}
-                        className="text-slate-600"
-                    />
+            </section>
 
-                </Link>
 
-            </div>
+            {/* =================================================
+                QUICK ACCESS
+            ================================================= */}
+
+            <section
+                className="
+                    mt-6
+                    rounded-2xl
+                    border
+                    border-slate-200
+                    bg-white
+                    p-4
+                    shadow-sm
+                    sm:p-5
+                "
+            >
+
+                <div>
+
+                    <p
+                        className="
+                            text-[10px]
+                            font-bold
+                            uppercase
+                            tracking-[0.2em]
+                            text-indigo-600
+                        "
+                    >
+                        Quick Access
+                    </p>
+
+
+                    <h3
+                        className="
+                            mt-1
+                            text-base
+                            font-bold
+                            text-slate-900
+                        "
+                    >
+                        Administration
+                    </h3>
+
+                </div>
+
+
+                <div
+                    className="
+                        mt-4
+                        grid
+                        gap-3
+                        md:grid-cols-2
+                    "
+                >
+
+                    <Link
+                        to="/admin/dashboard/users"
+                        className="
+                            group
+                            flex
+                            min-w-0
+                            items-center
+                            justify-between
+                            gap-3
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-slate-50
+                            p-4
+                            transition
+                            hover:border-indigo-200
+                            hover:bg-indigo-50
+                        "
+                    >
+
+                        <div
+                            className="
+                                flex
+                                min-w-0
+                                items-center
+                                gap-3
+                            "
+                        >
+
+                            <div
+                                className="
+                                    flex
+                                    h-10
+                                    w-10
+                                    shrink-0
+                                    items-center
+                                    justify-center
+                                    rounded-xl
+                                    border
+                                    border-indigo-100
+                                    bg-white
+                                    text-indigo-600
+                                "
+                            >
+                                <Users size={18} />
+                            </div>
+
+
+                            <div className="min-w-0">
+
+                                <p
+                                    className="
+                                        truncate
+                                        text-sm
+                                        font-semibold
+                                        text-slate-900
+                                    "
+                                >
+                                    User Accounts
+                                </p>
+
+
+                                <p
+                                    className="
+                                        mt-1
+                                        text-xs
+                                        text-slate-500
+                                    "
+                                >
+                                    View and manage users
+                                </p>
+
+                            </div>
+
+                        </div>
+
+
+                        <ArrowRight
+                            size={16}
+                            className="
+                                shrink-0
+                                text-slate-300
+                                transition
+                                group-hover:translate-x-0.5
+                                group-hover:text-indigo-600
+                            "
+                        />
+
+                    </Link>
+
+
+                    <Link
+                        to="/profile"
+                        className="
+                            group
+                            flex
+                            min-w-0
+                            items-center
+                            justify-between
+                            gap-3
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-slate-50
+                            p-4
+                            transition
+                            hover:border-indigo-200
+                            hover:bg-indigo-50
+                        "
+                    >
+
+                        <div
+                            className="
+                                flex
+                                min-w-0
+                                items-center
+                                gap-3
+                            "
+                        >
+
+                            <div
+                                className="
+                                    flex
+                                    h-10
+                                    w-10
+                                    shrink-0
+                                    items-center
+                                    justify-center
+                                    rounded-xl
+                                    border
+                                    border-slate-200
+                                    bg-white
+                                    text-slate-600
+                                "
+                            >
+                                <ShieldCheck size={18} />
+                            </div>
+
+
+                            <div className="min-w-0">
+
+                                <p
+                                    className="
+                                        truncate
+                                        text-sm
+                                        font-semibold
+                                        text-slate-900
+                                    "
+                                >
+                                    Admin Profile
+                                </p>
+
+
+                                <p
+                                    className="
+                                        mt-1
+                                        text-xs
+                                        text-slate-500
+                                    "
+                                >
+                                    Manage administrator profile
+                                </p>
+
+                            </div>
+
+                        </div>
+
+
+                        <ArrowRight
+                            size={16}
+                            className="
+                                shrink-0
+                                text-slate-300
+                                transition
+                                group-hover:translate-x-0.5
+                                group-hover:text-indigo-600
+                            "
+                        />
+
+                    </Link>
+
+                </div>
+
+            </section>
 
         </div>
+
     );
+
 };
 
 

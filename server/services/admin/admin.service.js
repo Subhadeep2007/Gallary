@@ -49,82 +49,50 @@ const getSafeUserQuery = () => {
 const getDashboardStats = async() => {
 
     const [
-
         totalUsers,
-
         activeUsers,
-
         inactiveUsers,
-
         deletedUsers,
-
         verifiedUsers,
-
         totalImages,
-
         totalVideos,
-
+        totalAudios,
         totalPdfs,
-
         totalFiles,
-
-        deletedFiles
-
+        deletedFiles,
+        storageResult
     ] = await Promise.all([
-
 
         // ========================================
         // USERS
         // ========================================
 
         User.countDocuments({
-
             role: "user",
-
             isDeleted: false
-
         }),
 
-
         User.countDocuments({
-
             role: "user",
-
             isActive: true,
-
             isDeleted: false
-
         }),
 
-
         User.countDocuments({
-
             role: "user",
-
             isActive: false,
-
             isDeleted: false
-
         }),
 
-
         User.countDocuments({
-
             role: "user",
-
             isDeleted: true
-
         }),
 
-
         User.countDocuments({
-
             role: "user",
-
             isEmailVerified: true,
-
             isDeleted: false
-
         }),
 
 
@@ -133,46 +101,67 @@ const getDashboardStats = async() => {
         // ========================================
 
         File.countDocuments({
-
             fileType: "image",
-
             isDeleted: false
-
         }),
 
-
         File.countDocuments({
-
             fileType: "video",
-
             isDeleted: false
-
         }),
 
+        File.countDocuments({
+            fileType: "audio",
+            isDeleted: false
+        }),
 
         File.countDocuments({
-
             fileType: "pdf",
-
             isDeleted: false
-
         }),
 
-
         File.countDocuments({
-
             isDeleted: false
-
         }),
 
-
         File.countDocuments({
-
             isDeleted: true
+        }),
 
-        })
+
+        // ========================================
+        // ACTIVE STORAGE
+        // ========================================
+
+        File.aggregate([
+
+            {
+                $match: {
+                    isDeleted: false
+                }
+            },
+
+            {
+                $group: {
+
+                    _id: null,
+
+                    totalSize: {
+                        $sum: "$size"
+                    }
+
+                }
+            }
+
+        ])
 
     ]);
+
+
+    const storageUsed =
+        storageResult.length > 0 ?
+        storageResult[0].totalSize :
+        0;
 
 
     return {
@@ -200,9 +189,13 @@ const getDashboardStats = async() => {
 
             videos: totalVideos,
 
+            audios: totalAudios,
+
             pdfs: totalPdfs,
 
-            deleted: deletedFiles
+            deleted: deletedFiles,
+
+            storageUsed
 
         }
 
@@ -307,19 +300,13 @@ const getUserById = async(
     // ========================================
 
     const [
-
         totalFiles,
-
         images,
-
         videos,
-
+        audios,
         pdfs,
-
         deletedFiles,
-
         storageResult
-
     ] = await Promise.all([
 
 
@@ -360,6 +347,21 @@ const getUserById = async(
             user: user._id,
 
             fileType: "video",
+
+            isDeleted: false
+
+        }),
+
+
+        // ========================================
+        // AUDIO
+        // ========================================
+
+        File.countDocuments({
+
+            user: user._id,
+
+            fileType: "audio",
 
             isDeleted: false
 
@@ -450,6 +452,8 @@ const getUserById = async(
             images,
 
             videos,
+
+            audios,
 
             pdfs,
 
@@ -725,29 +729,18 @@ const deleteUser = async(
 const getPlatformStatistics = async() => {
 
     const [
-
         totalUsers,
-
         activeUsers,
-
         inactiveUsers,
-
         deletedUsers,
-
         verifiedUsers,
-
         totalFiles,
-
         imageFiles,
-
         videoFiles,
-
+        audioFiles,
         pdfFiles,
-
         deletedFiles,
-
         storageResult
-
     ] = await Promise.all([
 
 
@@ -763,7 +756,6 @@ const getPlatformStatistics = async() => {
 
         }),
 
-
         User.countDocuments({
 
             role: "user",
@@ -773,7 +765,6 @@ const getPlatformStatistics = async() => {
             isDeleted: false
 
         }),
-
 
         User.countDocuments({
 
@@ -785,7 +776,6 @@ const getPlatformStatistics = async() => {
 
         }),
 
-
         User.countDocuments({
 
             role: "user",
@@ -793,7 +783,6 @@ const getPlatformStatistics = async() => {
             isDeleted: true
 
         }),
-
 
         User.countDocuments({
 
@@ -816,7 +805,6 @@ const getPlatformStatistics = async() => {
 
         }),
 
-
         File.countDocuments({
 
             fileType: "image",
@@ -824,7 +812,6 @@ const getPlatformStatistics = async() => {
             isDeleted: false
 
         }),
-
 
         File.countDocuments({
 
@@ -834,6 +821,13 @@ const getPlatformStatistics = async() => {
 
         }),
 
+        File.countDocuments({
+
+            fileType: "audio",
+
+            isDeleted: false
+
+        }),
 
         File.countDocuments({
 
@@ -843,7 +837,6 @@ const getPlatformStatistics = async() => {
 
         }),
 
-
         File.countDocuments({
 
             isDeleted: true
@@ -852,7 +845,7 @@ const getPlatformStatistics = async() => {
 
 
         // ========================================
-        // TOTAL STORAGE
+        // TOTAL ACTIVE STORAGE
         // ========================================
 
         File.aggregate([
@@ -918,6 +911,8 @@ const getPlatformStatistics = async() => {
             images: imageFiles,
 
             videos: videoFiles,
+
+            audios: audioFiles,
 
             pdfs: pdfFiles,
 

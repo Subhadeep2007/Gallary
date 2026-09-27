@@ -45,7 +45,10 @@ import Category from "../pages/gallery/Category.jsx";
 // ADMIN PANEL
 // ========================================
 
+import AdminLayout from "../layouts/AdminLayout.jsx";
 import AdminDashboard from "../pages/admin/AdminDashboard.jsx";
+import AdminUsers from "../pages/admin/AdminUsers.jsx";
+import AdminUserDetails from "../pages/admin/AdminUserDetails.jsx";
 
 
 // ========================================
@@ -852,53 +855,78 @@ const AppRoutes = () => {
 
       <Route
 
-        path="/admin/dashboard"
+        path="/admin"
 
         element={
 
           <AdminRoute>
 
-            <AdminDashboard />
+            <AdminLayout />
 
           </AdminRoute>
 
         }
 
-      />
-
-
-      {/* ========================================
-          FUTURE ADMIN PANEL
-      ======================================== */}
-
-      {/*
-        <Route
-          path="/admin/users"
-          element={
-            <AdminRoute>
-              <Users />
-            </AdminRoute>
-          }
-        />
+      >
 
         <Route
-          path="/admin/users/:userId"
+
+          index
+
           element={
-            <AdminRoute>
-              <UserDetails />
-            </AdminRoute>
+
+            <Navigate
+
+              to="/admin/dashboard"
+
+              replace
+
+            />
+
           }
+
         />
 
+
         <Route
-          path="/admin/statistics"
+
+          path="dashboard"
+
           element={
-            <AdminRoute>
-              <Statistics />
-            </AdminRoute>
+
+            <AdminDashboard />
+
           }
+
         />
-      */}
+
+
+        <Route
+
+          path="dashboard/users"
+
+          element={
+
+            <AdminUsers />
+
+          }
+
+        />
+
+
+        <Route
+
+          path="dashboard/users/:userId"
+
+          element={
+
+            <AdminUserDetails />
+
+          }
+
+        />
+
+      </Route>
 
 
       {/* ========================================

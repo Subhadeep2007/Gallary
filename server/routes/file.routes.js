@@ -39,11 +39,33 @@ import {
 
 
 // ========================================
+// VALIDATORS
+// ========================================
+
+import {
+
+    createFileSchema,
+
+    syncFileSchema,
+
+    renameFileSchema,
+
+    changeCategorySchema,
+
+    fileIdSchema
+
+} from "../validators/file.validator.js";
+
+
+// ========================================
 // MIDDLEWARE
 // ========================================
 
 import authMiddleware
 from "../middleware/auth.middleware.js";
+
+import validate
+from "../middleware/validate.middleware.js";
 
 
 // ========================================
@@ -71,6 +93,10 @@ router.post(
 
     "/",
 
+    createFileSchema,
+
+    validate,
+
     create
 
 );
@@ -83,6 +109,10 @@ router.post(
 router.post(
 
     "/sync",
+
+    syncFileSchema,
+
+    validate,
 
     sync
 
@@ -162,6 +192,10 @@ router.get(
 
     "/:fileId",
 
+    fileIdSchema,
+
+    validate,
+
     getOne
 
 );
@@ -174,6 +208,12 @@ router.get(
 router.patch(
 
     "/:fileId/rename",
+
+    fileIdSchema,
+
+    renameFileSchema,
+
+    validate,
 
     rename
 
@@ -188,6 +228,12 @@ router.patch(
 
     "/:fileId/category",
 
+    fileIdSchema,
+
+    changeCategorySchema,
+
+    validate,
+
     changeCategory
 
 );
@@ -200,6 +246,10 @@ router.patch(
 router.patch(
 
     "/:fileId/favorite",
+
+    fileIdSchema,
+
+    validate,
 
     favorite
 
@@ -214,6 +264,10 @@ router.delete(
 
     "/:fileId",
 
+    fileIdSchema,
+
+    validate,
+
     remove
 
 );
@@ -227,6 +281,10 @@ router.patch(
 
     "/:fileId/restore",
 
+    fileIdSchema,
+
+    validate,
+
     restore
 
 );
@@ -239,6 +297,10 @@ router.patch(
 router.delete(
 
     "/:fileId/permanent",
+
+    fileIdSchema,
+
+    validate,
 
     permanentDelete
 

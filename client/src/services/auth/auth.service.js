@@ -69,9 +69,28 @@ const resendVerificationOTP = async(
     email
 ) => {
 
-    // Accept the canonical email string and legacy { email } callers.
-    const emailValue =
-        typeof email === "string" ? email : email?.email;
+    let emailValue = email;
+
+    if (
+        typeof email !== "string"
+    ) {
+
+        if (
+            email &&
+            email.email
+        ) {
+
+            emailValue =
+                email.email;
+
+        } else {
+
+            emailValue = "";
+
+        }
+
+    }
+
 
     const response =
         await api.post(

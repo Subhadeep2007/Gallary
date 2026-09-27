@@ -1,15 +1,17 @@
-import api from "../../api/api.js";
+import api from "../api/api";
 
 // ========================================
 // GET PROFILE
 // ========================================
 
 export const getProfile = async() => {
+
     const response = await api.get(
-        "/user/profile"
+        "/profile"
     );
 
-    return response.data;
+    return response.data?.data ?? response.data;
+
 };
 
 
@@ -20,30 +22,49 @@ export const getProfile = async() => {
 export const updateProfile = async(
     profileData
 ) => {
-    const response = await api.put(
-        "/user/profile",
+
+    const response = await api.patch(
+        "/profile",
         profileData
     );
 
-    return response.data;
+    return response.data?.data ?? response.data;
+
 };
 
 
 // ========================================
-// UPLOAD PROFILE IMAGE
+// UPLOAD / REPLACE PROFILE IMAGE
 // ========================================
 
 export const uploadProfileImage = async(
     formData
 ) => {
-    const response = await api.put(
-        "/user/profile-picture",
+
+    const response = await api.patch(
+        "/profile/image",
         formData, {
             headers: {
-                "Content-Type": "multipart/form-data"
+                "Content-Type": undefined
             }
         }
     );
 
-    return response.data;
+    return response.data?.data ?? response.data;
+
+};
+
+
+// ========================================
+// DELETE PROFILE IMAGE
+// ========================================
+
+export const removeProfileImage = async() => {
+
+    const response = await api.delete(
+        "/profile/image"
+    );
+
+    return response.data?.data ?? response.data;
+
 };

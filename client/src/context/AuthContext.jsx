@@ -188,6 +188,16 @@ const AuthProvider = ({
 
     }, []);
 
+    const updateUser = useCallback((userUpdates) => {
+        setUser((currentUser) => {
+            if (!currentUser) return currentUser;
+
+            const updatedUser = { ...currentUser, ...userUpdates };
+            localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+            return updatedUser;
+        });
+    }, []);
+
 
     // ========================================
     // REFRESH SESSION
@@ -686,6 +696,8 @@ const AuthProvider = ({
     const value = {
 
         user,
+
+        updateUser,
 
         accessToken,
 

@@ -51,10 +51,13 @@ const isValidAdminSecret = (
 ) => {
 
     const expectedSecret =
-        process.env.ADMIN_SECRET_KEY;
+        process.env.ADMIN_SECRET_KEY?.trim();
+
+    const normalizedProvidedSecret =
+        typeof providedSecret === "string" ? providedSecret.trim() : "";
 
 
-    if (!providedSecret ||
+    if (!normalizedProvidedSecret ||
         !expectedSecret
     ) {
 
@@ -65,7 +68,7 @@ const isValidAdminSecret = (
 
     const providedBuffer =
         Buffer.from(
-            providedSecret
+            normalizedProvidedSecret
         );
 
     const expectedBuffer =
@@ -167,6 +170,29 @@ const sendVerificationOTP = async(
 
 };
 
+
+const issueVerificationOTP = async (user, email) => {
+    const otp = generateOTP();
+
+    try {
+        await sendVerificationOTP(email, otp);
+    } catch (error) {
+        console.error("Verification email delivery failed:", error.message);
+        const sender = process.env.EMAIL_FROM || "";
+        const guidance = sender.toLowerCase().endsWith("@resend.dev")
+            ? "The configured Resend sender is for testing. Verify your own sending domain and set EMAIL_FROM to an address on it."
+            : "Check RESEND_API_KEY, EMAIL_FROM, and the provider error in the server log.";
+
+        throw createError(
+            `Verification email could not be sent. ${guidance}`,
+            503
+        );
+    }
+
+    user.emailVerificationOTP = otp;
+    user.emailVerificationOTPExpire = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+};
 
 // =========================================================
 // SEND PASSWORD RESET OTP
@@ -362,6 +388,20 @@ const registerUser = async({
         });
 
 
+    if (
+        existingUser &&
+        existingUser.role === "user" &&
+        !existingUser.isEmailVerified &&
+        !existingUser.isDeleted
+    ) {
+        await issueVerificationOTP(existingUser, normalizedEmail);
+
+        return {
+            message: "Account already created. A verification OTP has been sent.",
+            user: getSafeUser(existingUser)
+        };
+    }
+
     if (existingUser) {
 
         throw createError(
@@ -390,14 +430,6 @@ const registerUser = async({
 
 
     // ========================================
-    // GENERATE OTP
-    // ========================================
-
-    const otp =
-        generateOTP();
-
-
-    // ========================================
     // CREATE USER
     // ========================================
 
@@ -414,13 +446,6 @@ const registerUser = async({
 
             isEmailVerified: false,
 
-            emailVerificationOTP: otp,
-
-            emailVerificationOTPExpire: new Date(
-                Date.now() +
-                10 * 60 * 1000
-            ),
-
             isActive: true,
 
             isDeleted: false
@@ -433,34 +458,12 @@ const registerUser = async({
     // ========================================
 
     try {
-
-        await sendVerificationOTP(
-
-            normalizedEmail,
-
-            otp
-
-        );
-
+        await issueVerificationOTP(user, normalizedEmail);
     } catch (error) {
-
-        console.error(
-
-            "Verification email failed:",
-
-            error.message
-
-        );
-
-
         throw createError(
-
-            "Account created but verification email could not be sent. Please resend OTP.",
-
-            500
-
+            `Account created but verification email could not be sent. ${error.message}`,
+            error.statusCode || 503
         );
-
     }
 
 
@@ -540,6 +543,20 @@ const registerAdmin = async({
         });
 
 
+    if (
+        existingUser &&
+        existingUser.role === "admin" &&
+        !existingUser.isEmailVerified &&
+        !existingUser.isDeleted
+    ) {
+        await issueVerificationOTP(existingUser, normalizedEmail);
+
+        return {
+            message: "Admin account already created. A verification OTP has been sent.",
+            user: getSafeUser(existingUser)
+        };
+    }
+
     if (existingUser) {
 
         throw createError(
@@ -593,14 +610,6 @@ const registerAdmin = async({
 
 
     // ========================================
-    // GENERATE OTP
-    // ========================================
-
-    const otp =
-        generateOTP();
-
-
-    // ========================================
     // CREATE ADMIN
     // ========================================
 
@@ -617,13 +626,6 @@ const registerAdmin = async({
 
             isEmailVerified: false,
 
-            emailVerificationOTP: otp,
-
-            emailVerificationOTPExpire: new Date(
-                Date.now() +
-                10 * 60 * 1000
-            ),
-
             isActive: true,
 
             isDeleted: false
@@ -636,34 +638,12 @@ const registerAdmin = async({
     // ========================================
 
     try {
-
-        await sendVerificationOTP(
-
-            normalizedEmail,
-
-            otp
-
-        );
-
+        await issueVerificationOTP(admin, normalizedEmail);
     } catch (error) {
-
-        console.error(
-
-            "Admin verification email failed:",
-
-            error.message
-
-        );
-
-
         throw createError(
-
-            "Admin account created but verification email could not be sent. Please resend OTP.",
-
-            500
-
+            `Admin account created but verification email could not be sent. ${error.message}`,
+            error.statusCode || 503
         );
-
     }
 
 
@@ -874,52 +854,7 @@ const resendVerificationOTP = async(
     }
 
 
-    const otp =
-        generateOTP();
-
-
-    user.emailVerificationOTP =
-        otp;
-
-    user.emailVerificationOTPExpire =
-        new Date(
-            Date.now() +
-            10 * 60 * 1000
-        );
-
-
-    await user.save();
-
-
-    try {
-
-        await sendVerificationOTP(
-
-            normalizedEmail,
-
-            otp
-
-        );
-
-    } catch (error) {
-
-        console.error(
-
-            "Resend verification email failed:",
-
-            error.message
-
-        );
-
-        throw createError(
-
-            "Failed to send verification OTP. Please try again.",
-
-            500
-
-        );
-
-    }
+    await issueVerificationOTP(user, normalizedEmail);
 
 
     return {
@@ -1027,45 +962,7 @@ const loginUser = async({
     // ========================================
 
     if (!user.isEmailVerified) {
-
-        const otp =
-            generateOTP();
-
-
-        user.emailVerificationOTP =
-            otp;
-
-        user.emailVerificationOTPExpire =
-            new Date(
-                Date.now() +
-                10 * 60 * 1000
-            );
-
-
-        await user.save();
-
-
-        try {
-
-            await sendVerificationOTP(
-
-                normalizedEmail,
-
-                otp
-
-            );
-
-        } catch (error) {
-
-            console.error(
-
-                "Login verification email failed:",
-
-                error.message
-
-            );
-
-        }
+        await issueVerificationOTP(user, normalizedEmail);
 
 
         return {
@@ -1250,45 +1147,7 @@ const loginAdmin = async({
     // ========================================
 
     if (!admin.isEmailVerified) {
-
-        const otp =
-            generateOTP();
-
-
-        admin.emailVerificationOTP =
-            otp;
-
-        admin.emailVerificationOTPExpire =
-            new Date(
-                Date.now() +
-                10 * 60 * 1000
-            );
-
-
-        await admin.save();
-
-
-        try {
-
-            await sendVerificationOTP(
-
-                normalizedEmail,
-
-                otp
-
-            );
-
-        } catch (error) {
-
-            console.error(
-
-                "Admin login verification email failed:",
-
-                error.message
-
-            );
-
-        }
+        await issueVerificationOTP(admin, normalizedEmail);
 
 
         return {

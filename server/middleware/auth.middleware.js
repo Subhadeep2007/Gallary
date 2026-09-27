@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
+import User from "../models/user.model.js";
 
-const authMiddleware = (
+const authMiddleware = async (
     req,
     res,
     next
@@ -75,6 +76,23 @@ const authMiddleware = (
         // ATTACH USER TO REQUEST
         // ========================================
 
+        const user = await User.findById(decoded.userId).select(
+            "role isActive isDeleted refreshToken"
+        );
+
+        if (
+            !user ||
+            user.isDeleted ||
+            !user.isActive ||
+            !user.refreshToken ||
+            user.role !== decoded.role
+        ) {
+            return res.status(401).json({
+                success: false,
+                message: "Your session is no longer valid. Please sign in again.",
+            });
+        }
+
         req.user = decoded;
 
 
@@ -82,9 +100,13 @@ const authMiddleware = (
 
     } catch (error) {
 
-        // ========================================
-        // TOKEN ERROR
-        // ========================================
+        if (
+            error.name !== "JsonWebTokenError" &&
+            error.name !== "TokenExpiredError" &&
+            error.name !== "NotBeforeError"
+        ) {
+            return next(error);
+        }
 
         return res.status(401).json({
 

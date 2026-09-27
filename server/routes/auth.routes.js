@@ -85,6 +85,14 @@ const router =
 // USER REGISTER
 // ========================================
 
+router.get("/register", (req, res) => {
+    res.set("Allow", "POST");
+    return res.status(405).json({
+        success: false,
+        message: "Registration requires POST. Open the client registration page or send a POST request with name, email, and password.",
+    });
+});
+
 router.post(
 
     "/register",
@@ -103,6 +111,14 @@ router.post(
 // ========================================
 // ADMIN REGISTER
 // ========================================
+
+router.get("/admin/register", (req, res) => {
+    res.set("Allow", "POST");
+    return res.status(405).json({
+        success: false,
+        message: "Admin registration requires POST. Open the client admin registration page or send a POST request with name, email, password, and adminSecretKey.",
+    });
+});
 
 router.post(
 

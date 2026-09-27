@@ -177,11 +177,21 @@ const issueVerificationOTP = async (user, email) => {
     try {
         await sendVerificationOTP(email, otp);
     } catch (error) {
-        console.error("Verification email delivery failed:", error.message);
+        const providerMessage = error.cause?.message || error.message;
+        console.error("Verification email delivery failed:", providerMessage);
         const sender = process.env.EMAIL_FROM || "";
-        const guidance = sender.toLowerCase().endsWith("@resend.dev")
-            ? "The configured Resend sender is for testing. Verify your own sending domain and set EMAIL_FROM to an address on it."
-            : "Check RESEND_API_KEY, EMAIL_FROM, and the provider error in the server log.";
+        const gmailConfigured = Boolean(process.env.EMAIL?.trim() && process.env.PASS?.trim());
+        const testRecipientRejected =
+            /only send testing emails to your own email address/i.test(providerMessage);
+        const guidance = gmailConfigured
+            ? error.code === "EAUTH"
+                ? "Gmail rejected the login. Set PASS to a valid Google App Password for EMAIL."
+                : "Gmail SMTP failed. Check EMAIL, PASS, and the provider error in the server log."
+            : testRecipientRejected
+                ? "Resend test mode only allows delivery to the email address that owns the Resend account. For other recipients, verify a sending domain and set EMAIL_FROM to an address on it."
+                : sender.toLowerCase().endsWith("@resend.dev")
+                    ? "The configured Resend sender is for testing. Verify your own sending domain and set EMAIL_FROM to an address on it."
+                    : "Check RESEND_API_KEY, EMAIL_FROM, and the provider error in the server log.";
 
         throw createError(
             `Verification email could not be sent. ${guidance}`,

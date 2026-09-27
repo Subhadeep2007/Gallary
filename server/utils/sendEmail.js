@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 const sendEmail = async({
     to,
@@ -26,103 +27,55 @@ const sendEmail = async({
         }
 
 
-        // ========================================
-        // CHECK RESEND API KEY
-        // ========================================
+        const emailAccount = process.env.EMAIL?.trim();
+        const emailPassword = process.env.PASS?.trim();
 
-        if (!process.env.RESEND_API_KEY) {
+        // Prefer the configured Gmail account. Gmail requires an app
+        // password when two-step verification is enabled.
+        if (emailAccount || emailPassword) {
+            if (!emailAccount || !emailPassword) {
+                throw new Error("Both EMAIL and PASS are required for Gmail SMTP");
+            }
 
-            const error =
-                new Error(
-                    "RESEND_API_KEY is not configured"
-                );
+            const transporter = nodemailer.createTransport({
+                service: "gmail",
+                auth: {
+                    user: emailAccount,
+                    pass: emailPassword.replace(/\s/g, ""),
+                },
+            });
 
-            error.statusCode = 500;
-
-            throw error;
-
+            return await transporter.sendMail({
+                from: emailAccount,
+                to,
+                subject,
+                html,
+            });
         }
 
-
-        // ========================================
-        // CHECK EMAIL FROM
-        // ========================================
-
-        if (!process.env.EMAIL_FROM) {
-
-            const error =
-                new Error(
-                    "EMAIL_FROM is not configured"
-                );
-
-            error.statusCode = 500;
-
-            throw error;
-
+        // Resend can be used when Gmail SMTP credentials are not configured.
+        if (!process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) {
+            throw new Error("Configure EMAIL and PASS for Gmail SMTP, or RESEND_API_KEY and EMAIL_FROM for Resend");
         }
 
-
-        // ========================================
-        // CREATE RESEND INSTANCE
-        // ========================================
-
-        const resend =
-            new Resend(
-                process.env.RESEND_API_KEY
-            );
-
-
-        // ========================================
-        // SEND EMAIL
-        // ========================================
-
-        const { data, error } =
-        await resend.emails.send({
-
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const { data, error } = await resend.emails.send({
             from: process.env.EMAIL_FROM,
-
-            to: [
-                to
-            ],
-
+            to: [to],
             subject,
-
-            html
-
+            html,
         });
 
-
-        // ========================================
-        // RESEND ERROR
-        // ========================================
-
         if (error) {
-
-            console.error(
-                "Email sending failed:",
-                error.message
-            );
-
-            const emailError =
-                new Error(
-                    "Failed to send email"
-                );
-
-            emailError.statusCode = 500;
-
-            throw emailError;
-
+            console.error("Email sending failed:", error.message);
+            throw new Error("Failed to send email", { cause: error });
         }
-
 
         return data;
 
     } catch (error) {
 
-        console.error(
-            "Email service error:",
-            error.message
-        );
+        console.error("Email service error:", error.message);
 
         throw error;
 

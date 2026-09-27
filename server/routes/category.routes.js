@@ -96,6 +96,25 @@ router.get(
 
 
 // ========================================
+// GET CATEGORY FILE COUNT
+// IMPORTANT:
+// Must come before /:categoryId
+// ========================================
+
+router.get(
+
+    "/:categoryId/count",
+
+    categoryIdSchema,
+
+    validate,
+
+    fileCount
+
+);
+
+
+// ========================================
 // GET CATEGORY BY ID
 // ========================================
 
@@ -108,23 +127,6 @@ router.get(
     validate,
 
     getOne
-
-);
-
-
-// ========================================
-// GET CATEGORY FILE COUNT
-// ========================================
-
-router.get(
-
-    "/:categoryId/count",
-
-    categoryIdSchema,
-
-    validate,
-
-    fileCount
 
 );
 

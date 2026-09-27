@@ -7,6 +7,7 @@ import {
 import {
     FileImage,
     FileVideo,
+    FileAudio,
     FileText,
     Search,
     Grid2X2,
@@ -100,7 +101,10 @@ const formatFileSize = (size) => {
 // PREVIEW URL
 // =========================================================
 
-const createObjectUrl = (fileData) => {
+const createBlobFromData = (
+    fileData,
+    mimeType
+) => {
 
     if (!fileData) {
         return null;
@@ -112,12 +116,81 @@ const createObjectUrl = (fileData) => {
             fileData instanceof Blob
         ) {
 
-            return URL.createObjectURL(
-                fileData
+            return fileData;
+        }
+
+
+        if (
+            fileData instanceof ArrayBuffer
+        ) {
+
+            return new Blob(
+                [fileData],
+                {
+                    type:
+                        mimeType ||
+                        "application/octet-stream"
+                }
             );
         }
 
+
+        if (
+            ArrayBuffer.isView(fileData)
+        ) {
+
+            return new Blob(
+                [fileData.buffer],
+                {
+                    type:
+                        mimeType ||
+                        "application/octet-stream"
+                }
+            );
+        }
+
+
+        return new Blob(
+            [fileData],
+            {
+                type:
+                    mimeType ||
+                    "application/octet-stream"
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Create blob error:",
+            error
+        );
+
         return null;
+    }
+};
+
+
+const createObjectUrl = (
+    fileData,
+    mimeType
+) => {
+
+    const blob =
+        createBlobFromData(
+            fileData,
+            mimeType
+        );
+
+    if (!blob) {
+        return null;
+    }
+
+    try {
+
+        return URL.createObjectURL(
+            blob
+        );
 
     } catch (error) {
 
@@ -153,6 +226,17 @@ const FileIcon = ({
         );
     }
 
+
+    if (type === "audio") {
+
+        return (
+            <FileAudio
+                size={size}
+            />
+        );
+    }
+
+
     return (
         <FileText
             size={size}
@@ -185,7 +269,8 @@ const FavoritePreview = ({
 
             previewUrl =
                 createObjectUrl(
-                    file.fileData
+                    file.fileData,
+                    file.mimeType
                 );
 
             setUrl(
@@ -235,12 +320,59 @@ const FavoritePreview = ({
     ) {
 
         return (
-            <video
-                src={url}
-                className="h-full w-full object-cover"
-                muted
-                playsInline
-            />
+            <div className="relative h-full w-full bg-black">
+
+                <video
+                    src={url}
+                    className="h-full w-full object-contain"
+                    muted
+                    playsInline
+                    preload="metadata"
+                />
+
+                <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/40 via-transparent to-transparent p-3">
+
+                    <span className="rounded-lg bg-black/60 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+                        Video
+                    </span>
+
+                </div>
+
+            </div>
+        );
+    }
+
+
+    if (
+        file.fileType === "audio" &&
+        url
+    ) {
+
+        return (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-5 bg-slate-950 px-5">
+
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-slate-900 text-slate-300">
+
+                    <FileAudio
+                        size={40}
+                        strokeWidth={1.5}
+                    />
+
+                </div>
+
+
+                <div className="w-full max-w-sm">
+
+                    <audio
+                        src={url}
+                        controls
+                        preload="metadata"
+                        className="w-full"
+                    />
+
+                </div>
+
+            </div>
         );
     }
 
@@ -292,17 +424,33 @@ const FavoriteCard = ({
 
             {/* PREVIEW */}
 
-            <button
-                type="button"
-                onClick={() =>
-                    onOpen(file)
-                }
-                className="block h-52 w-full bg-slate-950"
-            >
-                <FavoritePreview
-                    file={file}
-                />
-            </button>
+            {file.fileType === "audio" ? (
+
+                <div className="block h-52 w-full bg-slate-950">
+
+                    <FavoritePreview
+                        file={file}
+                    />
+
+                </div>
+
+            ) : (
+
+                <button
+                    type="button"
+                    onClick={() =>
+                        onOpen(file)
+                    }
+                    className="block h-52 w-full bg-slate-950"
+                >
+
+                    <FavoritePreview
+                        file={file}
+                    />
+
+                </button>
+
+            )}
 
 
             {/* DETAILS */}
@@ -601,7 +749,8 @@ const Favorites = () => {
 
         const url =
             createObjectUrl(
-                file.fileData
+                file.fileData,
+                file.mimeType
             );
 
 
@@ -654,7 +803,8 @@ const Favorites = () => {
 
         const url =
             createObjectUrl(
-                file.fileData
+                file.fileData,
+                file.mimeType
             );
 
 
@@ -741,16 +891,34 @@ const Favorites = () => {
 
         try {
 
+            const shareBlob =
+                createBlobFromData(
+                    file.fileData,
+                    file.mimeType
+                );
+
+
+            if (!shareBlob) {
+
+                toast.error(
+                    "Unable to read this file."
+                );
+
+                return;
+            }
+
+
             const shareFile =
                 new File(
                     [
-                        file.fileData
+                        shareBlob
                     ],
                     file.fileName ||
                     "file",
                     {
                         type:
                             file.mimeType ||
+                            shareBlob.type ||
                             "application/octet-stream"
                     }
                 );

@@ -34,7 +34,7 @@ const categorySchema = new mongoose.Schema({
 
         minlength: 1,
 
-        maxlength: 2
+        maxlength: 50
 
     },
 

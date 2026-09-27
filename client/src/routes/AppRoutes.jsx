@@ -38,6 +38,7 @@ import AudioRecorder from "../pages/gallery/AudioRecorder.jsx";
 import PhotoEditor from "../pages/gallery/PhotoEditor.jsx";
 import VideoEditor from "../pages/gallery/VideoEditor.jsx";
 import AudioEditor from "../pages/gallery/AudioEditor.jsx";
+import Category from "../pages/gallery/Category.jsx";
 
 
 // ========================================
@@ -760,6 +761,19 @@ const AppRoutes = () => {
           path="trash"
 
           element={<Trash />}
+
+        />
+
+
+        {/* ========================================
+            CATEGORIES
+        ======================================== */}
+
+        <Route
+
+          path="categories"
+
+          element={<Category />}
 
         />
 

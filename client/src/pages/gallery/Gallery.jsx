@@ -2,6 +2,7 @@ import {
   Image,
   Video,
   FileText,
+  Music2,
   Star,
   Upload,
   FolderOpen,
@@ -27,6 +28,7 @@ const Gallery = () => {
   const [stats, setStats] = useState({
     images: 0,
     videos: 0,
+    audio: 0,
     documents: 0,
     favorites: 0,
   });
@@ -154,9 +156,14 @@ const Gallery = () => {
       const counts = await getFileCounts(userId);
       const files = await getAllFiles(userId);
 
+      const audioCount = files.filter((file) => {
+        return file.fileType === "audio";
+      }).length;
+
       setStats({
         images: counts.images || 0,
         videos: counts.videos || 0,
+        audio: audioCount,
         documents: counts.pdfs || 0,
         favorites: counts.favorites || 0,
       });
@@ -175,6 +182,7 @@ const Gallery = () => {
       setStats({
         images: 0,
         videos: 0,
+        audio: 0,
         documents: 0,
         favorites: 0,
       });
@@ -211,6 +219,13 @@ const Gallery = () => {
       icon: Video,
       text: "Videos stored",
       iconClass: "bg-purple-500/10 text-purple-400",
+    },
+    {
+      title: "Audio",
+      value: stats.audio,
+      icon: Music2,
+      text: "Audio stored",
+      iconClass: "bg-pink-500/10 text-pink-400",
     },
     {
       title: "Documents",
@@ -267,7 +282,7 @@ const Gallery = () => {
           STATS
       ======================================== */}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {statsData.map((stat) => {
           const Icon = stat.icon;
 

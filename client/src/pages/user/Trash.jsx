@@ -138,8 +138,9 @@ const formatDeletedDate = (value) => {
 // OBJECT URL
 // =========================================================
 
-const createObjectUrl = (
-    fileData
+const createBlobFromData = (
+    fileData,
+    mimeType
 ) => {
 
     if (!fileData) {
@@ -152,12 +153,81 @@ const createObjectUrl = (
             fileData instanceof Blob
         ) {
 
-            return URL.createObjectURL(
-                fileData
+            return fileData;
+        }
+
+
+        if (
+            fileData instanceof ArrayBuffer
+        ) {
+
+            return new Blob(
+                [fileData],
+                {
+                    type:
+                        mimeType ||
+                        "application/octet-stream"
+                }
             );
         }
 
+
+        if (
+            ArrayBuffer.isView(fileData)
+        ) {
+
+            return new Blob(
+                [fileData.buffer],
+                {
+                    type:
+                        mimeType ||
+                        "application/octet-stream"
+                }
+            );
+        }
+
+
+        return new Blob(
+            [fileData],
+            {
+                type:
+                    mimeType ||
+                    "application/octet-stream"
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Create blob error:",
+            error
+        );
+
         return null;
+    }
+};
+
+
+const createObjectUrl = (
+    fileData,
+    mimeType
+) => {
+
+    const blob =
+        createBlobFromData(
+            fileData,
+            mimeType
+        );
+
+    if (!blob) {
+        return null;
+    }
+
+    try {
+
+        return URL.createObjectURL(
+            blob
+        );
 
     } catch (error) {
 
@@ -235,7 +305,8 @@ const TrashPreview = ({
 
             previewUrl =
                 createObjectUrl(
-                    file.fileData
+                    file.fileData,
+                    file.mimeType
                 );
 
             setUrl(
@@ -285,12 +356,25 @@ const TrashPreview = ({
     ) {
 
         return (
-            <video
-                src={url}
-                className="h-full w-full object-cover opacity-80"
-                muted
-                playsInline
-            />
+            <div className="relative h-full w-full bg-black">
+
+                <video
+                    src={url}
+                    className="h-full w-full object-contain opacity-80"
+                    muted
+                    playsInline
+                    preload="metadata"
+                />
+
+                <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/50 via-transparent to-transparent p-3">
+
+                    <span className="rounded-lg bg-black/60 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+                        Video
+                    </span>
+
+                </div>
+
+            </div>
         );
     }
 
@@ -318,6 +402,7 @@ const TrashPreview = ({
                     <audio
                         src={url}
                         controls
+                        preload="metadata"
                         className="w-full"
                     />
 
@@ -738,7 +823,8 @@ const Trash = () => {
 
         const url =
             createObjectUrl(
-                file.fileData
+                file.fileData,
+                file.mimeType
             );
 
 
@@ -791,7 +877,8 @@ const Trash = () => {
 
         const url =
             createObjectUrl(
-                file.fileData
+                file.fileData,
+                file.mimeType
             );
 
 
@@ -878,16 +965,34 @@ const Trash = () => {
 
         try {
 
+            const shareBlob =
+                createBlobFromData(
+                    file.fileData,
+                    file.mimeType
+                );
+
+
+            if (!shareBlob) {
+
+                toast.error(
+                    "Unable to read this file."
+                );
+
+                return;
+            }
+
+
             const shareFile =
                 new File(
                     [
-                        file.fileData
+                        shareBlob
                     ],
                     file.fileName ||
                     "file",
                     {
                         type:
                             file.mimeType ||
+                            shareBlob.type ||
                             "application/octet-stream"
                     }
                 );

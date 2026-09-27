@@ -7,6 +7,7 @@ import {
 import {
     FileImage,
     FileVideo,
+    FileAudio,
     FileText,
     Search,
     Grid2X2,
@@ -192,6 +193,16 @@ const FileIcon = ({
         );
     }
 
+
+    if (type === "audio") {
+
+        return (
+            <FileAudio
+                size={size}
+            />
+        );
+    }
+
     return (
         <FileText
             size={size}
@@ -285,6 +296,39 @@ const TrashPreview = ({
 
 
     if (
+        file.fileType === "audio" &&
+        url
+    ) {
+
+        return (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-slate-950 px-5">
+
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-slate-900 text-slate-300">
+
+                    <FileAudio
+                        size={40}
+                        strokeWidth={1.5}
+                    />
+
+                </div>
+
+
+                <div className="w-full max-w-xs">
+
+                    <audio
+                        src={url}
+                        controls
+                        className="w-full"
+                    />
+
+                </div>
+
+            </div>
+        );
+    }
+
+
+    if (
         file.fileType === "pdf"
     ) {
 
@@ -335,17 +379,33 @@ const TrashCard = ({
 
             {/* PREVIEW */}
 
-            <button
-                type="button"
-                onClick={() =>
-                    onOpen(file)
-                }
-                className="block h-52 w-full bg-slate-950"
-            >
-                <TrashPreview
-                    file={file}
-                />
-            </button>
+            {file.fileType === "audio" ? (
+
+                <div className="block h-52 w-full bg-slate-950">
+
+                    <TrashPreview
+                        file={file}
+                    />
+
+                </div>
+
+            ) : (
+
+                <button
+                    type="button"
+                    onClick={() =>
+                        onOpen(file)
+                    }
+                    className="block h-52 w-full bg-slate-950"
+                >
+
+                    <TrashPreview
+                        file={file}
+                    />
+
+                </button>
+
+            )}
 
 
             {/* DETAILS */}

@@ -11,8 +11,13 @@ import {
   LogOut,
   Home,
   FolderOpen,
+  Camera,
+  Mic,
+  ImagePlus,
+  Video,
+  Music2,
 } from "lucide-react";
-import  useAuth  from "../hooks/useAuth.js";
+import useAuth from "../hooks/useAuth.js";
 
 const UserLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -45,6 +50,34 @@ const UserLayout = () => {
       name: "Trash",
       path: "/gallery/trash",
       icon: Trash2,
+    },
+  ];
+
+  const toolItems = [
+    {
+      name: "Camera",
+      path: "/gallery/camera",
+      icon: Camera,
+    },
+    {
+      name: "Audio Recorder",
+      path: "/gallery/audio-recorder",
+      icon: Mic,
+    },
+    {
+      name: "Photo Editor",
+      path: "/gallery/photo-editor",
+      icon: ImagePlus,
+    },
+    {
+      name: "Video Editor",
+      path: "/gallery/video-editor",
+      icon: Video,
+    },
+    {
+      name: "Audio Editor",
+      path: "/gallery/audio-editor",
+      icon: Music2,
     },
   ];
 
@@ -108,6 +141,7 @@ const UserLayout = () => {
 
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto px-4 py-6">
+          {/* Workspace */}
           <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Workspace
           </p>
@@ -137,6 +171,36 @@ const UserLayout = () => {
             })}
           </nav>
 
+          {/* Tools */}
+          <p className="mb-3 mt-8 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Tools
+          </p>
+
+          <nav className="space-y-1">
+            {toolItems.map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  onClick={closeSidebar}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
+                      isActive
+                        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
+                        : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                    }`
+                  }
+                >
+                  <Icon size={19} />
+                  <span>{item.name}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
+
+          {/* Account */}
           <p className="mb-3 mt-8 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Account
           </p>

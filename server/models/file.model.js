@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 
+
 const fileSchema = new mongoose.Schema({
 
     // ========================================
@@ -60,6 +61,8 @@ const fileSchema = new mongoose.Schema({
             "image",
 
             "video",
+
+            "audio",
 
             "pdf"
 
@@ -138,6 +141,16 @@ const fileSchema = new mongoose.Schema({
 
     },
 
+
+    isEdited: {
+
+        type: Boolean,
+
+        default: false
+
+    },
+
+
     // ========================================
     // FAVORITE
     // ========================================
@@ -151,6 +164,8 @@ const fileSchema = new mongoose.Schema({
         index: true
 
     },
+
+
     // ========================================
     // SOFT DELETE
     // ========================================
@@ -222,10 +237,15 @@ fileSchema.index({
 
 
 const File =
+
     mongoose.models.File ||
+
     mongoose.model(
+
         "File",
+
         fileSchema
+
     );
 
 

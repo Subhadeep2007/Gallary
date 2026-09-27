@@ -47,7 +47,9 @@ const create = async(
 
                 parentFileId: req.body.parentFileId,
 
-                isCopy: req.body.isCopy
+                isCopy: req.body.isCopy,
+
+                isEdited: req.body.isEdited
 
             });
 
@@ -103,6 +105,8 @@ const sync = async(
                 parentFileId: req.body.parentFileId,
 
                 isCopy: req.body.isCopy,
+
+                isEdited: req.body.isEdited,
 
                 isFavorite: req.body.isFavorite,
 
@@ -390,7 +394,9 @@ const favorite = async(
             success: true,
 
             message: result.isFavorite ?
+
                 "File added to favorites" :
+
                 "File removed from favorites",
 
             data: result

@@ -8,6 +8,7 @@ import {
 import {
     FileImage,
     FileVideo,
+    FileAudio,
     FileText,
     Upload,
     Search,
@@ -15,6 +16,7 @@ import {
     List,
     MoreVertical,
     Download,
+    Copy,
     Share2,
     Pencil,
     Trash2,
@@ -67,6 +69,17 @@ const VIDEO_TYPES = [
     "video/quicktime"
 ];
 
+const AUDIO_TYPES = [
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/wav",
+    "audio/ogg",
+    "audio/webm",
+    "audio/aac",
+    "audio/flac",
+    "audio/mp4"
+];
+
 const PDF_TYPES = [
     "application/pdf"
 ];
@@ -112,6 +125,10 @@ const getFileType = (mimeType) => {
         return "video";
     }
 
+    if (AUDIO_TYPES.includes(mimeType)) {
+        return "audio";
+    }
+
     if (PDF_TYPES.includes(mimeType)) {
         return "pdf";
     }
@@ -147,6 +164,75 @@ const formatFileSize = (size) => {
     }
 
     return `${value.toFixed(index === 0 ? 0 : 2)} ${units[index]}`;
+};
+
+
+const getCopyFileName = (fileName, files) => {
+
+    const originalName =
+        fileName ||
+        "Untitled file";
+
+
+    const lastDot =
+        originalName.lastIndexOf(".");
+
+
+    let baseName =
+        originalName;
+
+    let extension =
+        "";
+
+
+    if (
+        lastDot > 0 &&
+        lastDot < originalName.length - 1
+    ) {
+
+        baseName =
+            originalName.slice(
+                0,
+                lastDot
+            );
+
+        extension =
+            originalName.slice(
+                lastDot
+            );
+
+    }
+
+
+    let copyName =
+        `${baseName} - Copy${extension}`;
+
+
+    let copyNumber = 2;
+
+
+    while (
+        files.some((item) => {
+
+            return (
+                item.fileName ===
+                copyName &&
+                item.isDeleted !== true
+            );
+
+        })
+    ) {
+
+        copyName =
+            `${baseName} - Copy (${copyNumber})${extension}`;
+
+        copyNumber++;
+
+    }
+
+
+    return copyName;
+
 };
 
 
@@ -198,6 +284,16 @@ const FileTypeIcon = ({
 
         return (
             <FileVideo
+                size={size}
+                strokeWidth={1.7}
+            />
+        );
+    }
+
+    if (fileType === "audio") {
+
+        return (
+            <FileAudio
                 size={size}
                 strokeWidth={1.7}
             />
@@ -296,6 +392,34 @@ const FilePreview = ({
     }
 
 
+    if (
+        file.fileType === "audio" &&
+        previewUrl
+    ) {
+
+        return (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-slate-950 px-5">
+
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-slate-900 text-slate-300">
+
+                    <FileAudio
+                        size={40}
+                        strokeWidth={1.5}
+                    />
+
+                </div>
+
+                <audio
+                    src={previewUrl}
+                    controls
+                    className="w-full max-w-xs"
+                />
+
+            </div>
+        );
+    }
+
+
     if (file.fileType === "pdf") {
 
         return (
@@ -331,6 +455,7 @@ const FileCard = ({
     onDownload,
     onShare,
     onRename,
+    onCopy,
     onFavorite,
     onTrash
 }) => {
@@ -344,13 +469,23 @@ const FileCard = ({
 
             {/* PREVIEW */}
 
-            <button
-                type="button"
-                onClick={() => onOpen(file)}
-                className="block h-52 w-full bg-slate-950"
-            >
-                <FilePreview file={file} />
-            </button>
+            {file.fileType === "audio" ? (
+
+                <div className="block h-52 w-full bg-slate-950">
+                    <FilePreview file={file} />
+                </div>
+
+            ) : (
+
+                <button
+                    type="button"
+                    onClick={() => onOpen(file)}
+                    className="block h-52 w-full bg-slate-950"
+                >
+                    <FilePreview file={file} />
+                </button>
+
+            )}
 
 
             {/* MENU */}
@@ -423,6 +558,19 @@ const FileCard = ({
                         >
                             <Pencil size={16} />
                             Rename
+                        </button>
+
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setMenuOpen(false);
+                                onCopy(file);
+                            }}
+                            className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-slate-200 hover:bg-white/5"
+                        >
+                            <Copy size={16} />
+                            Create Copy
                         </button>
 
 
@@ -786,7 +934,7 @@ const MyFiles = () => {
             return {
                 valid: false,
                 message:
-                    "Only image, video and PDF files are allowed."
+                    "Only image, video, audio and PDF files are allowed."
             };
         }
 
@@ -892,6 +1040,9 @@ const MyFiles = () => {
                     isCopy:
                         false,
 
+                    isEdited:
+                        false,
+
                     createdAt:
                         new Date(),
 
@@ -934,6 +1085,9 @@ const MyFiles = () => {
                             null,
 
                         isCopy:
+                            false,
+
+                        isEdited:
                             false
                     });
 
@@ -1594,6 +1748,233 @@ const MyFiles = () => {
 
 
     // =====================================================
+    // CREATE COPY
+    // =====================================================
+
+    const handleCopy = async (
+        file
+    ) => {
+
+        if (
+            !file ||
+            !file.localFileId
+        ) {
+
+            return;
+
+        }
+
+
+        if (!file.fileData) {
+
+            toast.error(
+                "This file is not available locally."
+            );
+
+            return;
+
+        }
+
+
+        try {
+
+            const copyName =
+                getCopyFileName(
+                    file.fileName,
+                    files
+                );
+
+
+            const newLocalFileId =
+                crypto.randomUUID();
+
+
+            const copiedFileData =
+                new Blob(
+                    [file.fileData],
+                    {
+                        type:
+                            file.mimeType ||
+                            file.fileData.type ||
+                            "application/octet-stream"
+                    }
+                );
+
+
+            const localCopy =
+                await addFile({
+
+                    localFileId:
+                        newLocalFileId,
+
+                    userId,
+
+                    fileName:
+                        copyName,
+
+                    fileType:
+                        file.fileType,
+
+                    mimeType:
+                        file.mimeType ||
+                        copiedFileData.type,
+
+                    size:
+                        copiedFileData.size,
+
+                    fileData:
+                        copiedFileData,
+
+                    categoryId:
+                        file.categoryId ||
+                        null,
+
+                    isFavorite:
+                        false,
+
+                    isDeleted:
+                        false,
+
+                    deletedAt:
+                        null,
+
+                    syncStatus:
+                        "pending",
+
+                    parentFileId:
+                        file.mongoFileId ||
+                        null,
+
+                    parentLocalFileId:
+                        file.localFileId,
+
+                    isCopy:
+                        true,
+
+                    isEdited:
+                        false,
+
+                    createdAt:
+                        new Date(),
+
+                    updatedAt:
+                        new Date()
+
+                });
+
+
+            if (!localCopy) {
+
+                throw new Error(
+                    "Could not create local copy."
+                );
+
+            }
+
+
+            if (file.mongoFileId) {
+
+                try {
+
+                    const response =
+                        await createFile({
+
+                            localFileId:
+                                newLocalFileId,
+
+                            fileName:
+                                copyName,
+
+                            fileType:
+                                file.fileType,
+
+                            mimeType:
+                                file.mimeType ||
+                                copiedFileData.type,
+
+                            size:
+                                copiedFileData.size,
+
+                            categoryId:
+                                file.categoryId ||
+                                null,
+
+                            parentFileId:
+                                file.mongoFileId,
+
+                            isCopy:
+                                true,
+
+                            isEdited:
+                                false
+
+                        });
+
+
+                    const mongoCopy =
+                        response &&
+                        response.data;
+
+
+                    if (
+                        mongoCopy &&
+                        mongoCopy._id
+                    ) {
+
+                        await updateFileByLocalId(
+                            newLocalFileId,
+                            {
+                                mongoFileId:
+                                    mongoCopy._id,
+
+                                syncStatus:
+                                    "synced",
+
+                                updatedAt:
+                                    new Date()
+                            }
+                        );
+
+                    }
+
+                } catch (apiError) {
+
+                    console.error(
+                        "Copy metadata sync error:",
+                        apiError
+                    );
+
+                }
+
+            }
+
+
+            await loadFiles();
+
+
+            toast.success(
+                "File copy created successfully."
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "Copy error:",
+                error
+            );
+
+            toast.error(
+                error.message ||
+                "Unable to create file copy."
+            );
+
+        }
+
+    };
+
+
+    // =====================================================
     // MOVE TO TRASH
     // =====================================================
 
@@ -1711,7 +2092,7 @@ const MyFiles = () => {
                     </h1>
 
                     <p className="mt-1 text-sm text-slate-400">
-                        Manage your images, videos and PDFs.
+                        Manage your images, videos, audio files and PDFs.
                     </p>
 
                 </div>
@@ -1741,7 +2122,7 @@ const MyFiles = () => {
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept={`${IMAGE_TYPES.join(",")},${VIDEO_TYPES.join(",")},${PDF_TYPES.join(",")}`}
+                accept={`${IMAGE_TYPES.join(",")},${VIDEO_TYPES.join(",")},${AUDIO_TYPES.join(",")},${PDF_TYPES.join(",")}`}
                 onChange={handleFileChange}
                 className="hidden"
             />
@@ -1779,7 +2160,7 @@ const MyFiles = () => {
                 </p>
 
                 <p className="mt-1 text-xs text-slate-500">
-                    Images, videos and PDFs • Maximum 1GB per file
+                    Images, videos, audio and PDFs • Maximum 1GB per file
                 </p>
 
             </div>
@@ -1821,6 +2202,7 @@ const MyFiles = () => {
                         ["all", "All"],
                         ["image", "Images"],
                         ["video", "Videos"],
+                        ["audio", "Audio"],
                         ["pdf", "PDFs"]
                     ].map(
                         (item) => (
@@ -1918,7 +2300,7 @@ const MyFiles = () => {
                     </h2>
 
                     <p className="mt-2 text-sm text-slate-500">
-                        Upload your first image, video or PDF.
+                        Upload your first image, video, audio file or PDF.
                     </p>
 
                     <button
@@ -1962,6 +2344,9 @@ const MyFiles = () => {
                                     }
                                     onRename={
                                         openRename
+                                    }
+                                    onCopy={
+                                        handleCopy
                                     }
                                     onFavorite={
                                         handleFavorite
@@ -2086,6 +2471,19 @@ const MyFiles = () => {
                                                 className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white"
                                             >
                                                 <Pencil size={18} />
+                                            </button>
+
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleCopy(
+                                                        file
+                                                    )
+                                                }
+                                                className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white"
+                                            >
+                                                <Copy size={18} />
                                             </button>
 
 

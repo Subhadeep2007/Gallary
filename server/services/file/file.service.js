@@ -154,7 +154,8 @@ const createFile = async({
     size,
     categoryId = null,
     parentFileId = null,
-    isCopy = false
+    isCopy = false,
+    isEdited = false
 }) => {
 
     await checkUser(
@@ -186,7 +187,9 @@ const createFile = async({
 
         "video",
 
-        "pdf"
+        "pdf",
+
+        "audio"
 
     ];
 
@@ -322,6 +325,8 @@ const createFile = async({
 
             isCopy,
 
+            isEdited,
+
             isFavorite: false,
 
             isDeleted: false,
@@ -356,6 +361,7 @@ const syncFile = async({
     categoryId = null,
     parentFileId = null,
     isCopy = false,
+    isEdited = false,
     isFavorite = false,
     isDeleted = false,
     deletedAt = null
@@ -382,7 +388,9 @@ const syncFile = async({
 
         "video",
 
-        "pdf"
+        "pdf",
+
+        "audio"
 
     ];
 
@@ -472,6 +480,8 @@ const syncFile = async({
                     parentFile: parentFileId,
 
                     isCopy,
+
+                    isEdited,
 
                     isFavorite,
 
@@ -567,7 +577,9 @@ const getUserFiles = async({
 
             "video",
 
-            "pdf"
+            "pdf",
+
+            "audio"
 
         ];
 
@@ -1038,6 +1050,7 @@ const softDeleteFile = async({
     file.isDeleted =
         true;
 
+
     file.deletedAt =
         new Date();
 
@@ -1131,6 +1144,7 @@ const restoreFile = async({
 
     file.isDeleted =
         false;
+
 
     file.deletedAt =
         null;
@@ -1272,6 +1286,8 @@ const getFileStatistics = async({
 
         videos,
 
+        audios,
+
         pdfs,
 
         favorites,
@@ -1320,6 +1336,21 @@ const getFileStatistics = async({
             user: userId,
 
             fileType: "video",
+
+            isDeleted: false
+
+        }),
+
+
+        // ========================================
+        // AUDIOS
+        // ========================================
+
+        File.countDocuments({
+
+            user: userId,
+
+            fileType: "audio",
 
             isDeleted: false
 
@@ -1411,8 +1442,11 @@ const getFileStatistics = async({
 
 
     const storageUsed =
+
         storageResult.length > 0 ?
+
         storageResult[0].totalSize :
+
         0;
 
 
@@ -1423,6 +1457,8 @@ const getFileStatistics = async({
         images,
 
         videos,
+
+        audios,
 
         pdfs,
 

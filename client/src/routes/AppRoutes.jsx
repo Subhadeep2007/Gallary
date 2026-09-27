@@ -33,6 +33,11 @@ import Favorites from "../pages/user/Favorites.jsx";
 import Trash from "../pages/user/Trash.jsx";
 import Profile from "../pages/user/Profile.jsx";
 import Settings from "../pages/user/Settings.jsx";
+import Camera from "../pages/gallery/Camera.jsx";
+import AudioRecorder from "../pages/gallery/AudioRecorder.jsx";
+import PhotoEditor from "../pages/gallery/PhotoEditor.jsx";
+import VideoEditor from "../pages/gallery/VideoEditor.jsx";
+import AudioEditor from "../pages/gallery/AudioEditor.jsx";
 
 
 // ========================================
@@ -755,6 +760,71 @@ const AppRoutes = () => {
           path="trash"
 
           element={<Trash />}
+
+        />
+
+
+        {/* ========================================
+            CAMERA
+        ======================================== */}
+
+        <Route
+
+          path="camera"
+
+          element={<Camera />}
+
+        />
+
+
+        {/* ========================================
+            AUDIO RECORDER
+        ======================================== */}
+
+        <Route
+
+          path="audio-recorder"
+
+          element={<AudioRecorder />}
+
+        />
+
+
+        {/* ========================================
+            PHOTO EDITOR
+        ======================================== */}
+
+        <Route
+
+          path="photo-editor"
+
+          element={<PhotoEditor />}
+
+        />
+
+
+        {/* ========================================
+            VIDEO EDITOR
+        ======================================== */}
+
+        <Route
+
+          path="video-editor"
+
+          element={<VideoEditor />}
+
+        />
+
+
+        {/* ========================================
+            AUDIO EDITOR
+        ======================================== */}
+
+        <Route
+
+          path="audio-editor"
+
+          element={<AudioEditor />}
 
         />
 

@@ -52,10 +52,11 @@ const fileTypeValidation = body("fileType")
     .isIn([
         "image",
         "video",
+        "audio",
         "pdf"
     ])
     .withMessage(
-        "Only image, video and pdf files are allowed"
+        "Only image, video, audio and pdf files are allowed"
     );
 
 
@@ -137,6 +138,18 @@ const isCopyValidation = body("isCopy")
 
 
 // =========================================================
+// IS EDITED
+// =========================================================
+
+const isEditedValidation = body("isEdited")
+    .optional()
+    .isBoolean()
+    .withMessage(
+        "isEdited must be true or false"
+    );
+
+
+// =========================================================
 // IS FAVORITE
 // =========================================================
 
@@ -213,7 +226,9 @@ const createFileSchema = [
 
     parentFileIdValidation,
 
-    isCopyValidation
+    isCopyValidation,
+
+    isEditedValidation
 
 ];
 
@@ -239,6 +254,8 @@ const syncFileSchema = [
     parentFileIdValidation,
 
     isCopyValidation,
+
+    isEditedValidation,
 
     isFavoriteValidation,
 

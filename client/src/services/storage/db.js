@@ -1,10 +1,12 @@
 import Dexie from "dexie";
 
+
 // ========================================
 // DIGITAL GALLERY DATABASE
 // ========================================
 
 const db = new Dexie("DigitalGalleryDB");
+
 
 // ========================================
 // DATABASE SCHEMA
@@ -22,7 +24,7 @@ db.version(1).stores({
 //
 // localFileId → IndexedDB local file identifier
 // fileName    → actual file name
-// fileType    → image / video / pdf
+// fileType    → image / video / audio / pdf
 // category    → categoryId
 // isDeleted   → trash status
 //
@@ -45,14 +47,18 @@ const generateLocalFileId = () => {
         typeof crypto !== "undefined" &&
         crypto.randomUUID
     ) {
+
         return crypto.randomUUID();
+
     }
+
 
     return (
         Date.now().toString() +
         "-" +
         Math.random().toString(36).slice(2)
     );
+
 };
 
 
@@ -67,25 +73,42 @@ export const addFile = async(fileData) => {
         fileData.localFileId :
         generateLocalFileId();
 
+
     const createdAt =
         fileData.createdAt ?
         fileData.createdAt :
         new Date().toISOString();
+
 
     const isFavorite =
         fileData.isFavorite === true ?
         true :
         false;
 
+
     const isDeleted =
         fileData.isDeleted === true ?
         true :
         false;
 
+
     const syncStatus =
         fileData.syncStatus ?
         fileData.syncStatus :
         "pending";
+
+
+    const isCopy =
+        fileData.isCopy === true ?
+        true :
+        false;
+
+
+    const isEdited =
+        fileData.isEdited === true ?
+        true :
+        false;
+
 
     return await db.files.add({
 
@@ -95,14 +118,17 @@ export const addFile = async(fileData) => {
 
         userId: fileData.userId,
 
-        fileName: fileData.fileName || fileData.name,
+        fileName: fileData.fileName ||
+            fileData.name,
 
-        fileType: fileData.fileType || fileData.type,
+        fileType: fileData.fileType ||
+            fileData.type,
 
         mimeType: fileData.mimeType,
 
         size: fileData.size,
 
+        // Actual Blob/File
         fileData: fileData.fileData,
 
         categoryId: fileData.categoryId || null,
@@ -121,11 +147,30 @@ export const addFile = async(fileData) => {
 
         parentFileId: fileData.parentFileId || null,
 
-        isCopy: fileData.isCopy === true ?
-            true :
-            false
+        isCopy,
+
+        isEdited
 
     });
+
+};
+
+
+// ========================================
+// GET ALL LOCAL FILES
+// ========================================
+
+export const getLocalFiles = async() => {
+
+    const files =
+        await db.files
+        .orderBy("createdAt")
+        .reverse()
+        .toArray();
+
+
+    return files;
+
 };
 
 
@@ -141,16 +186,51 @@ export const getAllFiles = async(userId) => {
         .equals(userId)
         .toArray();
 
+
     return files
         .filter((file) => {
+
             return file.isDeleted !== true;
+
         })
         .sort((a, b) => {
+
             return (
                 new Date(b.createdAt) -
                 new Date(a.createdAt)
             );
+
         });
+
+};
+
+
+// ========================================
+// GET ACTIVE LOCAL FILES
+// ========================================
+
+export const getActiveLocalFiles = async() => {
+
+    const files =
+        await db.files
+        .toArray();
+
+
+    return files
+        .filter((file) => {
+
+            return file.isDeleted !== true;
+
+        })
+        .sort((a, b) => {
+
+            return (
+                new Date(b.createdAt) -
+                new Date(a.createdAt)
+            );
+
+        });
+
 };
 
 
@@ -166,19 +246,57 @@ export const getFavoriteFiles = async(userId) => {
         .equals(userId)
         .toArray();
 
+
     return files
         .filter((file) => {
+
             return (
                 file.isFavorite === true &&
                 file.isDeleted !== true
             );
+
         })
         .sort((a, b) => {
+
             return (
                 new Date(b.updatedAt) -
                 new Date(a.updatedAt)
             );
+
         });
+
+};
+
+
+// ========================================
+// GET FAVORITE LOCAL FILES
+// ========================================
+
+export const getFavoriteLocalFiles = async() => {
+
+    const files =
+        await db.files
+        .toArray();
+
+
+    return files
+        .filter((file) => {
+
+            return (
+                file.isFavorite === true &&
+                file.isDeleted === false
+            );
+
+        })
+        .sort((a, b) => {
+
+            return (
+                new Date(b.updatedAt) -
+                new Date(a.updatedAt)
+            );
+
+        });
+
 };
 
 
@@ -194,9 +312,12 @@ export const getAllTrashFiles = async(userId) => {
         .equals(userId)
         .toArray();
 
+
     return files
         .filter((file) => {
+
             return file.isDeleted === true;
+
         })
         .sort((a, b) => {
 
@@ -205,13 +326,55 @@ export const getAllTrashFiles = async(userId) => {
                 new Date(a.deletedAt) :
                 new Date(a.updatedAt);
 
+
             const secondDate =
                 b.deletedAt ?
                 new Date(b.deletedAt) :
                 new Date(b.updatedAt);
 
+
             return secondDate - firstDate;
+
         });
+
+};
+
+
+// ========================================
+// GET TRASH LOCAL FILES
+// ========================================
+
+export const getTrashLocalFiles = async() => {
+
+    const files =
+        await db.files
+        .toArray();
+
+
+    return files
+        .filter((file) => {
+
+            return file.isDeleted === true;
+
+        })
+        .sort((a, b) => {
+
+            const firstDate =
+                a.deletedAt ?
+                new Date(a.deletedAt) :
+                new Date(a.updatedAt);
+
+
+            const secondDate =
+                b.deletedAt ?
+                new Date(b.deletedAt) :
+                new Date(b.updatedAt);
+
+
+            return secondDate - firstDate;
+
+        });
+
 };
 
 
@@ -229,7 +392,36 @@ export const getFileByLocalId = async(
         .equals(localFileId)
         .first();
 
+
     return file;
+
+};
+
+
+// ========================================
+// GET LOCAL FILE BY ID
+// ========================================
+
+export const getLocalFileById = async(
+    localFileId
+) => {
+
+    if (!localFileId) {
+
+        return null;
+
+    }
+
+
+    const file =
+        await db.files
+        .where("localFileId")
+        .equals(localFileId)
+        .first();
+
+
+    return file || null;
+
 };
 
 
@@ -247,7 +439,36 @@ export const getFileByMongoId = async(
         .equals(mongoFileId)
         .first();
 
+
     return file;
+
+};
+
+
+// ========================================
+// GET LOCAL FILE BY MONGO ID
+// ========================================
+
+export const getLocalFileByMongoId = async(
+    mongoId
+) => {
+
+    if (!mongoId) {
+
+        return null;
+
+    }
+
+
+    const file =
+        await db.files
+        .where("mongoFileId")
+        .equals(mongoId)
+        .first();
+
+
+    return file || null;
+
 };
 
 
@@ -261,12 +482,19 @@ export const updateFile = async(
 ) => {
 
     return await db.files.update(
-        localId, {
+
+        localId,
+
+        {
+
             ...updates,
 
             updatedAt: new Date().toISOString()
+
         }
+
     );
+
 };
 
 
@@ -284,19 +512,106 @@ export const updateFileByLocalId = async(
             localFileId
         );
 
+
     if (!file) {
+
         throw new Error(
             "Local file not found"
         );
+
     }
 
+
     return await db.files.update(
-        file.localId, {
+
+        file.localId,
+
+        {
+
             ...updates,
 
             updatedAt: new Date().toISOString()
+
         }
+
     );
+
+};
+
+
+// ========================================
+// UPDATE LOCAL FILE
+// ========================================
+
+export const updateLocalFile = async(
+    localFileId,
+    updates
+) => {
+
+    const file =
+        await getLocalFileById(
+            localFileId
+        );
+
+
+    if (!file) {
+
+        throw new Error(
+            "Local file not found"
+        );
+
+    }
+
+
+    await db.files
+        .where("localFileId")
+        .equals(localFileId)
+        .modify({
+
+            ...updates,
+
+            updatedAt: new Date().toISOString()
+
+        });
+
+
+    return await getLocalFileById(
+        localFileId
+    );
+
+};
+
+
+// ========================================
+// RENAME LOCAL FILE
+// ========================================
+
+export const renameLocalFile = async(
+    localFileId,
+    fileName
+) => {
+
+    if (!fileName) {
+
+        throw new Error(
+            "File name is required"
+        );
+
+    }
+
+
+    return await updateLocalFile(
+
+        localFileId,
+
+        {
+
+            fileName: fileName.trim()
+
+        }
+
+    );
+
 };
 
 
@@ -313,14 +628,22 @@ export const moveFileToTrash = async(
             localFileId
         );
 
+
     if (!file) {
+
         throw new Error(
             "File not found"
         );
+
     }
 
+
     return await db.files.update(
-        file.localId, {
+
+        file.localId,
+
+        {
+
             isDeleted: true,
 
             deletedAt: new Date().toISOString(),
@@ -328,8 +651,26 @@ export const moveFileToTrash = async(
             updatedAt: new Date().toISOString(),
 
             syncStatus: "pending"
+
         }
+
     );
+
+};
+
+
+// ========================================
+// MOVE LOCAL FILE TO TRASH
+// ========================================
+
+export const moveLocalFileToTrash = async(
+    localFileId
+) => {
+
+    return await moveFileToTrash(
+        localFileId
+    );
+
 };
 
 
@@ -346,14 +687,22 @@ export const restoreFile = async(
             localFileId
         );
 
+
     if (!file) {
+
         throw new Error(
             "File not found"
         );
+
     }
 
+
     return await db.files.update(
-        file.localId, {
+
+        file.localId,
+
+        {
+
             isDeleted: false,
 
             deletedAt: null,
@@ -361,8 +710,26 @@ export const restoreFile = async(
             updatedAt: new Date().toISOString(),
 
             syncStatus: "pending"
+
         }
+
     );
+
+};
+
+
+// ========================================
+// RESTORE LOCAL FILE
+// ========================================
+
+export const restoreLocalFile = async(
+    localFileId
+) => {
+
+    return await restoreFile(
+        localFileId
+    );
+
 };
 
 
@@ -379,26 +746,53 @@ export const toggleFavorite = async(
             localFileId
         );
 
+
     if (!file) {
+
         throw new Error(
             "File not found"
         );
+
     }
+
 
     const newFavoriteStatus =
         file.isFavorite === true ?
         false :
         true;
 
+
     return await db.files.update(
-        file.localId, {
+
+        file.localId,
+
+        {
+
             isFavorite: newFavoriteStatus,
 
             updatedAt: new Date().toISOString(),
 
             syncStatus: "pending"
+
         }
+
     );
+
+};
+
+
+// ========================================
+// TOGGLE LOCAL FAVORITE
+// ========================================
+
+export const toggleLocalFavorite = async(
+    localFileId
+) => {
+
+    return await toggleFavorite(
+        localFileId
+    );
+
 };
 
 
@@ -415,15 +809,35 @@ export const deleteFilePermanently = async(
             localFileId
         );
 
+
     if (!file) {
+
         throw new Error(
             "File not found"
         );
+
     }
+
 
     return await db.files.delete(
         file.localId
     );
+
+};
+
+
+// ========================================
+// PERMANENT DELETE LOCAL FILE
+// ========================================
+
+export const permanentlyDeleteLocalFile = async(
+    localFileId
+) => {
+
+    return await deleteFilePermanently(
+        localFileId
+    );
+
 };
 
 
@@ -440,20 +854,129 @@ export const emptyLocalTrash = async(
             userId
         );
 
+
     const localIds =
         trashFiles.map((file) => {
+
             return file.localId;
+
         });
 
+
     if (localIds.length === 0) {
+
         return 0;
+
     }
+
 
     await db.files.bulkDelete(
         localIds
     );
 
+
     return localIds.length;
+
+};
+
+
+// ========================================
+// GET FILES BY TYPE
+// ========================================
+
+export const getLocalFilesByType = async(
+    fileType
+) => {
+
+    const allowedTypes = [
+
+        "image",
+
+        "video",
+
+        "audio",
+
+        "pdf"
+
+    ];
+
+
+    if (!allowedTypes.includes(
+            fileType
+        )) {
+
+        throw new Error(
+            "Invalid file type"
+        );
+
+    }
+
+
+    const files =
+        await db.files
+        .where("fileType")
+        .equals(fileType)
+        .toArray();
+
+
+    return files.filter((file) => {
+
+        return file.isDeleted !== true;
+
+    });
+
+};
+
+
+// ========================================
+// GET FILE BLOB
+// ========================================
+
+export const getLocalFileBlob = async(
+    localFileId
+) => {
+
+    const file =
+        await getLocalFileById(
+            localFileId
+        );
+
+
+    if (!file) {
+
+        return null;
+
+    }
+
+
+    return file.fileData;
+
+};
+
+
+// ========================================
+// CHECK FILE EXISTS
+// ========================================
+
+export const localFileExists = async(
+    localFileId
+) => {
+
+    const file =
+        await getLocalFileById(
+            localFileId
+        );
+
+
+    if (file) {
+
+        return true;
+
+    }
+
+
+    return false;
+
 };
 
 
@@ -471,21 +994,32 @@ export const markFileAsSynced = async(
             localFileId
         );
 
+
     if (!file) {
+
         throw new Error(
             "File not found"
         );
+
     }
 
+
     return await db.files.update(
-        file.localId, {
+
+        file.localId,
+
+        {
+
             mongoFileId,
 
             syncStatus: "synced",
 
             updatedAt: new Date().toISOString()
+
         }
+
     );
+
 };
 
 
@@ -502,19 +1036,30 @@ export const markFileAsPending = async(
             localFileId
         );
 
+
     if (!file) {
+
         throw new Error(
             "File not found"
         );
+
     }
 
+
     return await db.files.update(
-        file.localId, {
+
+        file.localId,
+
+        {
+
             syncStatus: "pending",
 
             updatedAt: new Date().toISOString()
+
         }
+
     );
+
 };
 
 
@@ -532,9 +1077,13 @@ export const getPendingFiles = async(
         .equals(userId)
         .toArray();
 
+
     return files.filter((file) => {
+
         return file.syncStatus === "pending";
+
     });
+
 };
 
 
@@ -552,49 +1101,81 @@ export const getFileCounts = async(
         .equals(userId)
         .toArray();
 
+
     const activeFiles =
         files.filter((file) => {
+
             return file.isDeleted !== true;
+
         });
+
 
     const images =
         activeFiles.filter((file) => {
+
             return file.fileType === "image";
+
         }).length;
+
 
     const videos =
         activeFiles.filter((file) => {
+
             return file.fileType === "video";
+
         }).length;
+
+
+    const audios =
+        activeFiles.filter((file) => {
+
+            return file.fileType === "audio";
+
+        }).length;
+
 
     const pdfs =
         activeFiles.filter((file) => {
+
             return file.fileType === "pdf";
+
         }).length;
+
 
     const favorites =
         activeFiles.filter((file) => {
+
             return file.isFavorite === true;
+
         }).length;
+
 
     const trash =
         files.filter((file) => {
+
             return file.isDeleted === true;
+
         }).length;
 
+
     return {
+
         total: activeFiles.length,
 
         images,
 
         videos,
 
+        audios,
+
         pdfs,
 
         favorites,
 
         trash
+
     };
+
 };
 
 
@@ -612,18 +1193,39 @@ export const clearUserFiles = async(
         .equals(userId)
         .toArray();
 
+
     const localIds =
         files.map((file) => {
+
             return file.localId;
+
         });
 
+
     if (localIds.length === 0) {
+
         return;
+
     }
+
 
     await db.files.bulkDelete(
         localIds
     );
+
+};
+
+
+// ========================================
+// CLEAR COMPLETE LOCAL DATABASE
+// ========================================
+
+export const clearLocalDatabase = async() => {
+
+    await db.files.clear();
+
+    return true;
+
 };
 
 
@@ -632,5 +1234,6 @@ export const clearUserFiles = async(
 // ========================================
 
 export { db };
+
 
 export default db;

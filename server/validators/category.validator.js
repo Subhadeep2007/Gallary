@@ -15,10 +15,10 @@ const createCategorySchema = [
     )
     .isLength({
         min: 1,
-        max: 2
+        max: 50
     })
     .withMessage(
-        "Category name must be between 1 and 2 characters"
+        "Category name must be between 1 and 50 characters"
     ),
 
     body("description")

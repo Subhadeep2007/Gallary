@@ -22,6 +22,9 @@ from "./routes/category.routes.js";
 import fileRoutes
 from "./routes/file.routes.js";
 
+import profileRoutes
+from "./routes/profile.routes.js";
+
 
 // ========================================
 // ERROR MIDDLEWARE
@@ -184,6 +187,19 @@ app.use(
     "/api/files",
 
     fileRoutes
+
+);
+
+
+// ========================================
+// PROFILE ROUTES
+// ========================================
+
+app.use(
+
+    "/api/profile",
+
+    profileRoutes
 
 );
 

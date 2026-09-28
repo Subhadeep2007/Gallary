@@ -580,13 +580,41 @@ const Camera = () => {
         }
 
 
-        context.drawImage(
-            video,
-            0,
-            0,
-            canvas.width,
-            canvas.height
-        );
+       if (facingMode === "user") {
+
+    context.save();
+
+    context.translate(
+        canvas.width,
+        0
+    );
+
+    context.scale(
+        -1,
+        1
+    );
+
+    context.drawImage(
+        video,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    context.restore();
+
+} else {
+
+    context.drawImage(
+        video,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+}
 
 
         canvas.toBlob(
@@ -1305,7 +1333,11 @@ const Camera = () => {
                         autoPlay
                         muted
                         playsInline
-                        className="h-full w-full object-cover scale-x-0[-1]"
+                        className={
+    facingMode === "user"
+        ? "h-full w-full object-cover -scale-x-100"
+        : "h-full w-full object-cover"
+}
                     />
 
 

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import mongoose from "mongoose";
 
 import File from "../../models/file.model.js";
@@ -744,6 +745,9 @@ const getUserFiles = async({
         userId
     );
 
+    // Rebuild missing Mongo metadata from the account's Cloudinary folder so
+    // assets survive an interrupted metadata write and appear on other devices.
+    await recoverMissingCloudinaryFiles(userId);
 
     // ========================================
     // CATEGORY OWNERSHIP
@@ -1783,4 +1787,149 @@ export {
 
     getFileStatistics
 
+};
+
+
+// =========================================================
+// RECOVER CLOUD FILES WITHOUT A MONGODB RECORD
+// =========================================================
+
+const cloudinaryReconcileCache = new Map();
+const CLOUDINARY_RECONCILE_INTERVAL = 30_000;
+
+const inferCloudFileType = (asset) => {
+    const format = String(asset.format || "").toLowerCase();
+    const name = String(asset.display_name || asset.public_id || "").toLowerCase();
+    const extension = name.split(".").pop();
+    const effectiveFormat = format || extension;
+
+    if (asset.resource_type === "image") return "image";
+    if (asset.resource_type === "video") {
+        return ["mp3", "wav", "ogg", "m4a", "aac", "flac", "webm"].includes(effectiveFormat)
+            ? "audio"
+            : "video";
+    }
+    return effectiveFormat === "pdf" ? "pdf" : "audio";
+};
+
+const inferCloudMimeType = (asset, fileType) => {
+    const format = String(asset.format || "").toLowerCase();
+    if (fileType === "pdf") return "application/pdf";
+    if (fileType === "image") return `image/${format === "jpg" ? "jpeg" : format || "octet-stream"}`;
+    if (fileType === "video") return `video/${format || "mp4"}`;
+
+    const audioMimeTypes = {
+        mp3: "audio/mpeg",
+        m4a: "audio/mp4",
+        aac: "audio/aac",
+        wav: "audio/wav",
+        ogg: "audio/ogg",
+        webm: "audio/webm",
+        flac: "audio/flac"
+    };
+    return audioMimeTypes[format] || `audio/${format || "octet-stream"}`;
+};
+
+const getCloudinaryFolderResources = async(userId) => {
+    const folder = `digital-gallery/${userId}`;
+    const assets = [];
+    let nextCursor;
+
+    try {
+        do {
+            const page = await cloudinary.api.resources_by_asset_folder(
+                folder,
+                { max_results: 500, next_cursor: nextCursor }
+            );
+            assets.push(...(page.resources || []));
+            nextCursor = page.next_cursor;
+        } while (nextCursor);
+        return assets;
+    } catch {
+        // Fixed-folder Cloudinary accounts do not support the asset-folder
+        // listing endpoint. In that mode assets are listed by resource type
+        // and public ID prefix instead.
+        for (const resourceType of ["image", "video", "raw"]) {
+            nextCursor = undefined;
+            do {
+                const page = await cloudinary.api.resources({
+                    resource_type: resourceType,
+                    type: "upload",
+                    prefix: `${folder}/`,
+                    max_results: 500,
+                    next_cursor: nextCursor
+                });
+                assets.push(...(page.resources || []));
+                nextCursor = page.next_cursor;
+            } while (nextCursor);
+        }
+        return assets;
+    }
+
+    return assets;
+};
+
+const recoverMissingCloudinaryFiles = async(userId) => {
+    const now = Date.now();
+    const lastReconcile = cloudinaryReconcileCache.get(String(userId)) || 0;
+    if (now - lastReconcile < CLOUDINARY_RECONCILE_INTERVAL) return;
+
+    try {
+        const assets = await getCloudinaryFolderResources(userId);
+        for (const asset of assets) {
+            if (!asset.public_id || !asset.resource_type) continue;
+
+            const existing = await File.findOne({
+                user: userId,
+                $or: [
+                    { cloudinaryPublicId: asset.public_id },
+                    ...(asset.secure_url ? [{ fileUrl: asset.secure_url }] : [])
+                ]
+            }).select("_id");
+            if (existing) continue;
+
+            const fileType = inferCloudFileType(asset);
+            const fileName = asset.display_name || asset.original_filename || asset.public_id.split("/").pop();
+            const localFileId = `cloud-${createHash("sha256").update(`${asset.resource_type}:${asset.public_id}`).digest("hex")}`;
+
+            await File.updateOne(
+                { user: userId, localFileId },
+                {
+                    $setOnInsert: {
+                        user: userId,
+                        localFileId,
+                        fileName,
+                        fileType,
+                        mimeType: inferCloudMimeType(asset, fileType),
+                        size: asset.bytes || 0,
+                        fileUrl: asset.secure_url || cloudinary.url(asset.public_id, {
+                            secure: true,
+                            resource_type: asset.resource_type,
+                            type: "upload",
+                            format: asset.format || undefined
+                        }),
+                        cloudinaryPublicId: asset.public_id,
+                        cloudinaryResourceType: asset.resource_type,
+                        cloudinaryFormat: asset.format || null,
+                        category: null,
+                        parentFile: null,
+                        isCopy: false,
+                        isEdited: false,
+                        isFavorite: false,
+                        isDeleted: false,
+                        deletedAt: null,
+                        syncStatus: "synced",
+                        createdAt: asset.created_at ? new Date(asset.created_at) : new Date()
+                    }
+                },
+                { upsert: true }
+            );
+        }
+
+        cloudinaryReconcileCache.set(String(userId), Date.now());
+    } catch (error) {
+        // Cloudinary recovery is best effort: keep the MongoDB gallery usable
+        // if the provider's Admin API is temporarily unavailable.
+        console.error("Cloudinary gallery reconciliation failed:", error.message);
+    }
 };

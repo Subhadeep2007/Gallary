@@ -32,7 +32,8 @@ import {
 
 import {
     toggleFavorite as toggleMongoFavorite,
-    moveFileToTrash as moveMongoFileToTrash
+    moveFileToTrash as moveMongoFileToTrash,
+    getFavoriteFiles as getCloudFavoriteFiles
 } from "../../services/file/file.service.js";
 
 
@@ -652,26 +653,46 @@ const Favorites = () => {
                 setLoading(true);
 
 
-                const favoriteFiles =
+                const localFavorites =
                     await getFavoriteFiles(
                         userId
                     );
-
-
-                if (
-                    Array.isArray(
-                        favoriteFiles
-                    )
-                ) {
-
-                    setFiles(
-                        favoriteFiles
-                    );
-
-                } else {
-
-                    setFiles([]);
+                let cloudFavorites = [];
+                try {
+                    const response = await getCloudFavoriteFiles();
+                    cloudFavorites = Array.isArray(response?.data) ? response.data : [];
+                } catch (cloudError) {
+                    console.error("Cloud favorites load error:", cloudError);
                 }
+
+                const mergedFavorites = Array.isArray(localFavorites) ? [...localFavorites] : [];
+                cloudFavorites.forEach((cloudFile) => {
+                    const match = mergedFavorites.find((localFile) =>
+                        (cloudFile.localFileId && localFile.localFileId === cloudFile.localFileId) ||
+                        (cloudFile._id && localFile.mongoFileId === cloudFile._id)
+                    );
+                    if (match) {
+                        Object.assign(match, {
+                            mongoFileId: cloudFile._id || match.mongoFileId,
+                            fileUrl: cloudFile.fileUrl || match.fileUrl || null,
+                            isFavorite: true,
+                            isDeleted: false,
+                            syncStatus: "synced"
+                        });
+                    } else {
+                        mergedFavorites.push({
+                            ...cloudFile,
+                            localId: null,
+                            localFileId: cloudFile.localFileId || cloudFile._id,
+                            mongoFileId: cloudFile._id,
+                            fileData: null,
+                            isFavorite: true,
+                            isDeleted: false,
+                            syncStatus: "synced"
+                        });
+                    }
+                });
+                setFiles(mergedFavorites);
 
             } catch (error) {
 
@@ -1161,21 +1182,13 @@ const Favorites = () => {
             }
 
 
-            await updateFileByLocalId(
-                file.localFileId,
-                {
-                    isFavorite:
-                        false,
-
-                    syncStatus:
-                        file.mongoFileId
-                            ? "synced"
-                            : "pending",
-
-                    updatedAt:
-                        new Date()
-                }
-            );
+            if (file.localId !== null && file.localId !== undefined) {
+                await updateFileByLocalId(file.localFileId, {
+                    isFavorite: false,
+                    syncStatus: file.mongoFileId ? "synced" : "pending",
+                    updatedAt: new Date()
+                });
+            }
 
 
             await loadFavorites();
@@ -1224,9 +1237,9 @@ const Favorites = () => {
             }
 
 
-            await moveFileToTrash(
-                file.localFileId
-            );
+            if (file.localId !== null && file.localId !== undefined) {
+                await moveFileToTrash(file.localFileId);
+            }
 
 
             await loadFavorites();

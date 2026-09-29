@@ -1,27 +1,9 @@
 import mongoose from "mongoose";
 
-import {
-    v2 as cloudinary
-} from "cloudinary";
-
 import File from "../../models/file.model.js";
 import Category from "../../models/category.model.js";
 import User from "../../models/user.model.js";
-
-
-// ========================================
-// CLOUDINARY CONFIGURATION
-// ========================================
-
-cloudinary.config({
-
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-
-    api_key: process.env.CLOUDINARY_API_KEY,
-
-    api_secret: process.env.CLOUDINARY_API_SECRET
-
-});
+import cloudinary from "../../config/cloudinary.js";
 
 
 // =========================================================

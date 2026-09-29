@@ -102,17 +102,17 @@ The project separates file data from file metadata.
 
 Browser Storage
 
-Actual uploaded file data is stored locally in the browser using:
+The browser keeps a local media copy for offline access using:
 
 IndexedDB
 
 Dexie
 
-PWA-friendly local storage architecture
+Chrome persistent storage is requested to reduce automatic eviction. Browser site data can still be removed explicitly by the user.
 
 Backend
 
-MongoDB stores metadata such as:
+Media files are uploaded to Cloudinary so they can be accessed from other signed-in devices. MongoDB stores the file URL and metadata such as:
 
 User
 
@@ -134,7 +134,7 @@ Sync state
 
 Timestamps
 
-This keeps the gallery lightweight and allows the application to work around local browser storage while still maintaining metadata on the server.
+IndexedDB is an offline cache, not the only copy of media. Files still marked as pending have not completed their server upload and should be allowed to sync before clearing browser data.
 
 🧰 Tech Stack
 
@@ -256,25 +256,28 @@ npm install
 
 🔐 Environment Variables
 
-Create a .env file inside the server directory.
+Create a `.env` file inside the `server` directory. Use the variable names below; the Cloudinary configuration also accepts the older `CLOUD_NAME`, `CLOUD_KEY`, and `CLOUD_SECRET` names.
 
 Example:
 
-PORT=5000
-MONGO_URI=your_mongodb_connection_string
+PORT=8080
+ATLASDB_URL=your_mongodb_connection_string
 
 JWT_SECRET=your_jwt_secret
 
-CLIENT_URL=http://localhost:5173
+FRONTEND_URL=http://localhost:5173
 
 CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 
-MAIL_USER=your_email
-MAIL_PASS=your_email_password
+EMAIL=your_email
+PASS=your_email_password
+EMAIL_FROM=your_sender_address
+RESEND_API_KEY=your_resend_api_key
+ADMIN_SECRET_KEY=your_admin_registration_secret
 
-Use your project's actual variable names if they differ.
+The client uses `/api` by default. Vite proxies that path to `http://localhost:8080` during development. In production, route `/api` to the backend on the same domain, or set `VITE_API_URL` to the full backend API URL when building the client.
 
 ▶️ Run the Project
 

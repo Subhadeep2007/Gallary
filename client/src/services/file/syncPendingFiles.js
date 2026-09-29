@@ -13,7 +13,9 @@ const getFileList = (response) => {
     return [];
 };
 
-export const syncPendingFiles = async(userId) => {
+const activeSyncs = new Map();
+
+const runPendingFileSync = async(userId) => {
     if (!userId || !navigator.onLine) return { synced: 0, failed: 0 };
 
     let cloudFiles;
@@ -78,4 +80,17 @@ export const syncPendingFiles = async(userId) => {
     }
 
     return { synced, failed };
+};
+
+export const syncPendingFiles = async(userId) => {
+    if (!userId) return { synced: 0, failed: 0 };
+    if (activeSyncs.has(userId)) return activeSyncs.get(userId);
+
+    const syncPromise = runPendingFileSync(userId);
+    activeSyncs.set(userId, syncPromise);
+    try {
+        return await syncPromise;
+    } finally {
+        activeSyncs.delete(userId);
+    }
 };

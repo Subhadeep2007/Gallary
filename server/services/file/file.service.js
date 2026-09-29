@@ -177,7 +177,12 @@ const getCloudinaryResourceType = (
 const uploadToCloudinary = async({
     file,
     fileType,
-    userId
+    userId,
+    localFileId,
+    isEdited = false,
+    isCopy = false,
+    categoryId = null,
+    parentFileId = null
 }) => {
 
     if (!file) {
@@ -230,7 +235,18 @@ const uploadToCloudinary = async({
 
                         overwrite: false,
 
-                        filename_override: file.originalname
+                        filename_override: file.originalname,
+
+                        context: Object.fromEntries(
+                            Object.entries({
+                                local_file_id: localFileId,
+                                file_type: fileType,
+                                is_edited: String(isEdited === true),
+                                is_copy: String(isCopy === true),
+                                category_id: categoryId,
+                                parent_file_id: parentFileId
+                            }).filter(([, value]) => value !== null && value !== undefined)
+                        )
 
                     },
 
@@ -502,7 +518,17 @@ const createFile = async({
 
             fileType,
 
-            userId
+            userId,
+
+            localFileId,
+
+            isEdited,
+
+            isCopy,
+
+            categoryId,
+
+            parentFileId
 
         });
 
@@ -1805,7 +1831,7 @@ const inferCloudFileType = (asset) => {
 
     if (asset.resource_type === "image") return "image";
     if (asset.resource_type === "video") {
-        return ["mp3", "wav", "ogg", "m4a", "aac", "flac", "webm"].includes(effectiveFormat)
+        return ["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(effectiveFormat)
             ? "audio"
             : "video";
     }
@@ -1839,7 +1865,7 @@ const getCloudinaryFolderResources = async(userId) => {
         do {
             const page = await cloudinary.api.resources_by_asset_folder(
                 folder,
-                { max_results: 500, next_cursor: nextCursor }
+                { max_results: 500, next_cursor: nextCursor, context: true }
             );
             assets.push(...(page.resources || []));
             nextCursor = page.next_cursor;
@@ -1857,7 +1883,8 @@ const getCloudinaryFolderResources = async(userId) => {
                     type: "upload",
                     prefix: `${folder}/`,
                     max_results: 500,
-                    next_cursor: nextCursor
+                    next_cursor: nextCursor,
+                    context: true
                 });
                 assets.push(...(page.resources || []));
                 nextCursor = page.next_cursor;
@@ -1865,8 +1892,6 @@ const getCloudinaryFolderResources = async(userId) => {
         }
         return assets;
     }
-
-    return assets;
 };
 
 const recoverMissingCloudinaryFiles = async(userId) => {
@@ -1879,18 +1904,42 @@ const recoverMissingCloudinaryFiles = async(userId) => {
         for (const asset of assets) {
             if (!asset.public_id || !asset.resource_type) continue;
 
+            const context = asset.context?.custom || asset.context || {};
+            const contextType = ["image", "video", "audio", "pdf"].includes(context.file_type)
+                ? context.file_type
+                : null;
+            const contextLocalFileId = typeof context.local_file_id === "string"
+                ? context.local_file_id
+                : null;
+
             const existing = await File.findOne({
                 user: userId,
                 $or: [
                     { cloudinaryPublicId: asset.public_id },
+                    ...(contextLocalFileId ? [{ localFileId: contextLocalFileId }] : []),
                     ...(asset.secure_url ? [{ fileUrl: asset.secure_url }] : [])
                 ]
-            }).select("_id");
-            if (existing) continue;
+            });
 
-            const fileType = inferCloudFileType(asset);
+            if (existing) {
+                if (!existing.cloudinaryPublicId || !existing.fileUrl) {
+                    existing.cloudinaryPublicId = asset.public_id;
+                    existing.cloudinaryResourceType = asset.resource_type;
+                    existing.cloudinaryFormat = asset.format || null;
+                    existing.fileUrl = asset.secure_url || cloudinary.url(asset.public_id, {
+                        secure: true,
+                        resource_type: asset.resource_type,
+                        type: "upload",
+                        format: asset.format || undefined
+                    });
+                    await existing.save();
+                }
+                continue;
+            }
+
+            const fileType = contextType || inferCloudFileType(asset);
             const fileName = asset.display_name || asset.original_filename || asset.public_id.split("/").pop();
-            const localFileId = `cloud-${createHash("sha256").update(`${asset.resource_type}:${asset.public_id}`).digest("hex")}`;
+            const localFileId = contextLocalFileId || `cloud-${createHash("sha256").update(`${asset.resource_type}:${asset.public_id}`).digest("hex")}`;
 
             await File.updateOne(
                 { user: userId, localFileId },
@@ -1911,10 +1960,14 @@ const recoverMissingCloudinaryFiles = async(userId) => {
                         cloudinaryPublicId: asset.public_id,
                         cloudinaryResourceType: asset.resource_type,
                         cloudinaryFormat: asset.format || null,
-                        category: null,
-                        parentFile: null,
-                        isCopy: false,
-                        isEdited: false,
+                        category: mongoose.Types.ObjectId.isValid(context.category_id)
+                            ? context.category_id
+                            : null,
+                        parentFile: mongoose.Types.ObjectId.isValid(context.parent_file_id)
+                            ? context.parent_file_id
+                            : null,
+                        isCopy: context.is_copy === true || context.is_copy === "true",
+                        isEdited: context.is_edited === true || context.is_edited === "true",
                         isFavorite: false,
                         isDeleted: false,
                         deletedAt: null,

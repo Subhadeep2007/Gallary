@@ -719,6 +719,12 @@ const VideoEditor = () => {
                             cloudFile.id ||
                             null,
 
+                        categoryId:
+                            cloudFile.categoryId ||
+                            cloudFile.category?._id ||
+                            cloudFile.category ||
+                            null,
+
                         fileName:
                             cloudFile.fileName ||
                             cloudFile.name,
@@ -2593,6 +2599,12 @@ const VideoEditor = () => {
             const localFileId =
                 createLocalFileId();
 
+            const selectedCategoryId =
+                selectedFile.categoryId ||
+                selectedFile.category?._id ||
+                selectedFile.category ||
+                null;
+
 
             await addFile({
 
@@ -2616,8 +2628,7 @@ const VideoEditor = () => {
                     file,
 
                 categoryId:
-                    selectedFile.categoryId ||
-                    null,
+                    selectedCategoryId,
 
                 isFavorite:
                     false,
@@ -2669,8 +2680,7 @@ const VideoEditor = () => {
                             file.size,
 
                         categoryId:
-                            selectedFile.categoryId ||
-                            null,
+                            selectedCategoryId,
 
                         parentFileId:
                             selectedFile.mongoFileId ||

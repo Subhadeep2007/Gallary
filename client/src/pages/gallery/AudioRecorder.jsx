@@ -24,12 +24,15 @@ import useAuth from "../../hooks/useAuth.js";
 
 import {
     addFile,
+    getFileByLocalId,
     updateFileByLocalId
 } from "../../services/storage/db.js";
 
 import {
     createFile
 } from "../../services/file/file.service.js";
+
+import { syncPendingFiles } from "../../services/file/syncPendingFiles.js";
 
 
 // =========================================================
@@ -1065,6 +1068,19 @@ const AudioRecorder = () => {
                     }
                 );
 
+            }
+
+
+            if (!cloudSynced) {
+                // Retry once before clearing the recorder UI; otherwise a
+                // transient request failure leaves this recording local-only.
+                try {
+                    await syncPendingFiles(userId);
+                    const savedFile = await getFileByLocalId(localFileId);
+                    cloudSynced = Boolean(savedFile?.mongoFileId && savedFile?.fileUrl);
+                } catch (syncError) {
+                    console.error("Immediate audio sync retry failed:", syncError);
+                }
             }
 
 

@@ -23,12 +23,15 @@ import useAuth from "../../hooks/useAuth.js";
 
 import {
     addFile,
+    getFileByLocalId,
     updateFileByLocalId
 } from "../../services/storage/db.js";
 
 import {
     createFile
 } from "../../services/file/file.service.js";
+
+import { syncPendingFiles } from "../../services/file/syncPendingFiles.js";
 
 
 // =========================================================
@@ -1131,6 +1134,20 @@ const Camera = () => {
                             new Date()
                     }
                 );
+
+            }
+
+
+            if (fileType === "video" && !cloudSynced) {
+                // Retry video capture before clearing its preview so transient
+                // upload or metadata failures can still sync to other devices.
+                try {
+                    await syncPendingFiles(userId);
+                    const savedFile = await getFileByLocalId(localFileId);
+                    cloudSynced = Boolean(savedFile?.mongoFileId && savedFile?.fileUrl);
+                } catch (syncError) {
+                    console.error("Immediate video sync retry failed:", syncError);
+                }
             }
 
 

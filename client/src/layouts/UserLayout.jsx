@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import {
@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import useAuth from "../hooks/useAuth.js";
+import { syncPendingFiles } from "../services/file/syncPendingFiles.js";
 
 
 const UserLayout = () => {
@@ -33,6 +34,31 @@ const UserLayout = () => {
     user,
     logout
   } = useAuth();
+
+  const syncingPendingFiles = useRef(false);
+  const userId = user?.userId || user?._id || user?.id;
+
+  useEffect(() => {
+    if (!userId) return undefined;
+
+    const sync = async () => {
+      if (!navigator.onLine || syncingPendingFiles.current) return;
+      syncingPendingFiles.current = true;
+      try {
+        await syncPendingFiles(userId);
+      } finally {
+        syncingPendingFiles.current = false;
+      }
+    };
+
+    sync();
+    window.addEventListener("online", sync);
+    const retryTimer = window.setInterval(sync, 30_000);
+    return () => {
+      window.removeEventListener("online", sync);
+      window.clearInterval(retryTimer);
+    };
+  }, [userId]);
 
 
   // ========================================

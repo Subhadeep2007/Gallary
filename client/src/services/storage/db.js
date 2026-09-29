@@ -8,6 +8,49 @@ import Dexie from "dexie";
 const db = new Dexie("DigitalGalleryDB");
 
 
+// Ask Chrome to protect the local gallery from automatic storage eviction.
+// This does not override a user's explicit "Clear site data" action; media
+// that must survive that action needs to finish uploading to the server.
+let persistentStorageRequest;
+
+const requestPersistentStorage = () => {
+
+    if (!persistentStorageRequest) {
+
+        persistentStorageRequest = (async() => {
+
+            try {
+
+                if (
+                    typeof navigator !== "undefined" &&
+                    navigator.storage &&
+                    typeof navigator.storage.persist === "function"
+                ) {
+
+                    await navigator.storage.persist();
+
+                }
+
+            } catch (error) {
+
+                // Persistence is a browser-managed enhancement; IndexedDB
+                // remains usable if the browser declines the request.
+                console.warn(
+                    "Persistent browser storage was not granted:",
+                    error
+                );
+
+            }
+
+        })();
+
+    }
+
+    return persistentStorageRequest;
+
+};
+
+
 // ========================================
 // DATABASE SCHEMA
 // ========================================
@@ -78,6 +121,8 @@ const generateLocalFileId = () => {
 // ========================================
 
 export const addFile = async(fileData) => {
+
+    await requestPersistentStorage();
 
     const localFileId =
         fileData.localFileId ?

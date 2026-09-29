@@ -731,21 +731,45 @@ const Trash = () => {
                         userId
                     );
 
-
-                if (
-                    Array.isArray(
-                        localTrash
-                    )
-                ) {
-
-                    setFiles(
-                        localTrash
-                    );
-
-                } else {
-
-                    setFiles([]);
+                let cloudTrash = [];
+                try {
+                    const cloudResponse = await getTrashFiles();
+                    cloudTrash = Array.isArray(cloudResponse?.data)
+                        ? cloudResponse.data
+                        : Array.isArray(cloudResponse?.files)
+                            ? cloudResponse.files
+                            : [];
+                } catch (cloudError) {
+                    console.error("Cloud trash load error:", cloudError);
                 }
+
+                const mergedTrash = Array.isArray(localTrash) ? [...localTrash] : [];
+                cloudTrash.forEach((cloudFile) => {
+                    const match = mergedTrash.find((localFile) =>
+                        (cloudFile.localFileId && localFile.localFileId === cloudFile.localFileId) ||
+                        (cloudFile._id && localFile.mongoFileId === cloudFile._id)
+                    );
+                    if (match) {
+                        Object.assign(match, {
+                            mongoFileId: cloudFile._id || match.mongoFileId,
+                            fileUrl: cloudFile.fileUrl || match.fileUrl || null,
+                            isDeleted: true,
+                            syncStatus: "synced"
+                        });
+                    } else {
+                        mergedTrash.push({
+                            ...cloudFile,
+                            localId: null,
+                            localFileId: cloudFile.localFileId || cloudFile._id,
+                            mongoFileId: cloudFile._id,
+                            fileData: null,
+                            isDeleted: true,
+                            syncStatus: "synced"
+                        });
+                    }
+                });
+
+                setFiles(mergedTrash);
 
             } catch (error) {
 
@@ -1247,9 +1271,9 @@ const Trash = () => {
             }
 
 
-            await restoreLocalFile(
-                file.localFileId
-            );
+            if (file.localId !== null && file.localId !== undefined) {
+                await restoreLocalFile(file.localFileId);
+            }
 
 
             await loadTrash();
@@ -1315,9 +1339,9 @@ const Trash = () => {
                 }
 
 
-                await deleteFilePermanently(
-                    file.localFileId
-                );
+                if (file.localId !== null && file.localId !== undefined) {
+                    await deleteFilePermanently(file.localFileId);
+                }
 
 
                 await loadTrash();

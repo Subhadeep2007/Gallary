@@ -45,7 +45,8 @@ import {
 
 import {
     createFile,
-    changeFileCategory
+    changeFileCategory,
+    getFiles
 } from "../../services/file/file.service.js";
 
 
@@ -327,6 +328,10 @@ const CategoryFilePreview = ({
             setPreviewUrl(
                 objectUrl
             );
+
+        } else if (file?.fileUrl) {
+
+            setPreviewUrl(file.fileUrl);
 
         } else {
 
@@ -768,6 +773,7 @@ const Category = () => {
 
 
             let localFileList = [];
+            let cloudFileList = [];
 
 
             if (userId) {
@@ -789,11 +795,52 @@ const Category = () => {
 
                 }
 
+                try {
+                    const cloudResponse = await getFiles();
+                    cloudFileList = Array.isArray(cloudResponse?.data)
+                        ? cloudResponse.data
+                        : Array.isArray(cloudResponse?.files)
+                            ? cloudResponse.files
+                            : [];
+                } catch (cloudError) {
+                    console.error("Cloud category files load error:", cloudError);
+                }
+
             }
+
+            const mergedFiles = [...localFileList];
+            cloudFileList.forEach((cloudFile) => {
+                const match = mergedFiles.find((localFile) =>
+                    (cloudFile.localFileId && localFile.localFileId === cloudFile.localFileId) ||
+                    (cloudFile._id && localFile.mongoFileId === cloudFile._id)
+                );
+                const categoryId = cloudFile.category?._id || cloudFile.category || null;
+                if (match) {
+                    Object.assign(match, {
+                        mongoFileId: cloudFile._id || match.mongoFileId,
+                        fileUrl: cloudFile.fileUrl || match.fileUrl || null,
+                        categoryId,
+                        isFavorite: cloudFile.isFavorite === true,
+                        isDeleted: cloudFile.isDeleted === true,
+                        syncStatus: "synced"
+                    });
+                } else {
+                    mergedFiles.push({
+                        ...cloudFile,
+                        localId: null,
+                        localFileId: cloudFile.localFileId || cloudFile._id,
+                        mongoFileId: cloudFile._id,
+                        userId,
+                        fileData: null,
+                        categoryId,
+                        syncStatus: "synced"
+                    });
+                }
+            });
 
 
             const activeFiles =
-                localFileList.filter(
+                mergedFiles.filter(
                     (file) => {
 
                         return (
@@ -852,7 +899,7 @@ const Category = () => {
 
 
             setAllLocalFiles(
-                localFileList
+                mergedFiles
             );
 
 
@@ -1165,6 +1212,10 @@ const Category = () => {
                 const file =
                     filesInCategory[i];
 
+
+                if (file.localId === null || file.localId === undefined) {
+                    continue;
+                }
 
                 await updateFileByLocalId(
                     file.localFileId,
@@ -1616,33 +1667,27 @@ const Category = () => {
                             );
 
 
-                            await updateFileByLocalId(
-                                file.localFileId,
-                                {
-                                    categoryId:
-                                        selectedCategory._id,
-                                    syncStatus:
-                                        "synced"
-                                }
-                            );
+                            if (file.localId !== null && file.localId !== undefined) {
+                                await updateFileByLocalId(file.localFileId, {
+                                    categoryId: selectedCategory._id,
+                                    syncStatus: "synced"
+                                });
+                            }
 
 
                             successCount++;
 
                         } catch (apiError) {
 
-                            await updateFileByLocalId(
-                                file.localFileId,
-                                {
-                                    categoryId:
-                                        selectedCategory._id,
-                                    syncStatus:
-                                        "pending"
-                                }
-                            );
-
-
-                            pendingCount++;
+                            if (file.localId !== null && file.localId !== undefined) {
+                                await updateFileByLocalId(file.localFileId, {
+                                    categoryId: selectedCategory._id,
+                                    syncStatus: "pending"
+                                });
+                                pendingCount++;
+                            } else {
+                                failedCount++;
+                            }
 
                         }
 
@@ -1919,47 +1964,38 @@ const Category = () => {
                                 );
 
 
-                                await updateFileByLocalId(
-                                    duplicate.localFileId,
-                                    {
-                                        categoryId:
-                                            selectedCategory._id,
-                                        syncStatus:
-                                            "synced"
-                                    }
-                                );
+                                if (duplicate.localId !== null && duplicate.localId !== undefined) {
+                                    await updateFileByLocalId(duplicate.localFileId, {
+                                        categoryId: selectedCategory._id,
+                                        syncStatus: "synced"
+                                    });
+                                }
 
 
                                 addedCount++;
 
                             } catch (apiError) {
 
-                                await updateFileByLocalId(
-                                    duplicate.localFileId,
-                                    {
-                                        categoryId:
-                                            selectedCategory._id,
-                                        syncStatus:
-                                            "pending"
-                                    }
-                                );
-
-
-                                pendingCount++;
+                                if (duplicate.localId !== null && duplicate.localId !== undefined) {
+                                    await updateFileByLocalId(duplicate.localFileId, {
+                                        categoryId: selectedCategory._id,
+                                        syncStatus: "pending"
+                                    });
+                                    pendingCount++;
+                                } else {
+                                    failedCount++;
+                                }
 
                             }
 
                         } else {
 
-                            await updateFileByLocalId(
-                                duplicate.localFileId,
-                                {
-                                    categoryId:
-                                        selectedCategory._id,
-                                    syncStatus:
-                                        "pending"
-                                }
-                            );
+                            if (duplicate.localId !== null && duplicate.localId !== undefined) {
+                                await updateFileByLocalId(duplicate.localFileId, {
+                                    categoryId: selectedCategory._id,
+                                    syncStatus: "pending"
+                                });
+                            }
 
 
                             pendingCount++;
@@ -2067,14 +2103,16 @@ const Category = () => {
                                     false,
 
                                 isEdited:
-                                    false
+                                    false,
+
+                                file:
+                                    browserFile
 
                             });
 
 
                         const mongoFile =
-                            response &&
-                            response.data;
+                            response && response.data;
 
 
                         if (
@@ -2234,10 +2272,17 @@ const Category = () => {
         file
     ) => {
 
-        if (
-            !file ||
-            !file.fileData
-        ) {
+        if (!file) {
+            toast.error("This file is not available.");
+            return;
+        }
+
+        if (file.fileUrl) {
+            window.open(file.fileUrl, "_blank", "noopener,noreferrer");
+            return;
+        }
+
+        if (!file.fileData) {
 
             toast.error(
                 "This file is not available on this device."
@@ -2293,10 +2338,23 @@ const Category = () => {
         file
     ) => {
 
-        if (
-            !file ||
-            !file.fileData
-        ) {
+        if (!file) {
+            toast.error("This file is not available.");
+            return;
+        }
+
+        if (file.fileUrl) {
+            const link = document.createElement("a");
+            link.href = file.fileUrl;
+            link.download = file.fileName || "download";
+            link.rel = "noopener noreferrer";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            return;
+        }
+
+        if (!file.fileData) {
 
             toast.error(
                 "This file is not available on this device."

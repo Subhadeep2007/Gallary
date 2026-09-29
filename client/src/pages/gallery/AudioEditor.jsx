@@ -668,6 +668,7 @@ const AudioEditor = () => {
             return;
         }
 
+
         try {
 
             setLoadingFiles(true);
@@ -2347,6 +2348,9 @@ const AudioEditor = () => {
             return;
         }
 
+
+        let cloudSynced = false;
+
         try {
 
             setSaving(
@@ -2470,6 +2474,8 @@ const AudioEditor = () => {
                     mongoFile._id
                 ) {
 
+                    cloudSynced = Boolean(mongoFile.fileUrl);
+
                     await updateFileByLocalId(
                         localFileId,
                         {
@@ -2538,9 +2544,11 @@ const AudioEditor = () => {
             }
 
 
-            toast.success(
-                "Edited audio saved as a new copy."
-            );
+            if (cloudSynced) {
+                toast.success("Edited audio saved as a new copy.");
+            } else {
+                toast("Saved on this browser only; cloud upload is pending. Keep site data until sync completes.");
+            }
 
 
             await loadAudioFiles();

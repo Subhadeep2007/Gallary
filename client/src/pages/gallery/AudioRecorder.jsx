@@ -873,6 +873,9 @@ const AudioRecorder = () => {
         }
 
 
+        let cloudSynced = false;
+
+
         try {
 
             setSaving(true);
@@ -993,6 +996,8 @@ const AudioRecorder = () => {
                     mongoFile._id
                 ) {
 
+                    cloudSynced = Boolean(mongoFile.fileUrl);
+
                     await updateFileByLocalId(
                         localFileId,
                         {
@@ -1063,9 +1068,11 @@ const AudioRecorder = () => {
             }
 
 
-            toast.success(
-                "Audio saved to Gallery."
-            );
+            if (cloudSynced) {
+                toast.success("Audio saved to Gallery.");
+            } else {
+                toast("Saved on this browser only; cloud upload is pending. Keep site data until sync completes.");
+            }
 
 
             clearRecording();

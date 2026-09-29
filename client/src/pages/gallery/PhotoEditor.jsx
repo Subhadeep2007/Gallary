@@ -2175,6 +2175,8 @@ const PhotoEditor = () => {
                         );
 
 
+                        let cloudSynced = false;
+
                         try {
 
                             const response =
@@ -2220,15 +2222,16 @@ const PhotoEditor = () => {
                                 });
 
 
-                            // createFile() already returns response.data
                             const mongoFile =
-                                response;
+                                response?.data || response;
 
 
                             if (
                                 mongoFile &&
                                 mongoFile._id
                             ) {
+
+                                cloudSynced = Boolean(mongoFile.fileUrl);
 
                                 await updateFileByLocalId(
                                     localFileId,
@@ -2305,9 +2308,11 @@ const PhotoEditor = () => {
                         }
 
 
-                        toast.success(
-                            "Edited photo saved as a new copy."
-                        );
+                        if (cloudSynced) {
+                            toast.success("Edited photo saved as a new copy.");
+                        } else {
+                            toast("Saved on this browser only; cloud upload is pending. Keep site data until sync completes.");
+                        }
 
 
                         await loadImageFiles();

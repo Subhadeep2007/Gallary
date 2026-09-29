@@ -18,7 +18,6 @@ import { useNavigate } from "react-router-dom";
 import useAuth from "../../hooks/useAuth.js";
 import {
   getAllFiles,
-  getFileCounts,
 } from "../../services/storage/db.js";
 
 import {
@@ -157,7 +156,6 @@ const Gallery = () => {
     try {
       setLoading(true);
 
-      const counts = await getFileCounts(userId);
       const files = await getAllFiles(userId);
 
       let cloudFiles = [];
@@ -192,18 +190,6 @@ const Gallery = () => {
           cloudError
         );
       }
-
-      const audioCount = files.filter((file) => {
-        return file.fileType === "audio";
-      }).length;
-
-      setStats({
-        images: counts.images || 0,
-        videos: counts.videos || 0,
-        audio: audioCount,
-        documents: counts.pdfs || 0,
-        favorites: counts.favorites || 0,
-      });
 
       // ========================================
       // MERGE LOCAL + CLOUD FILES
@@ -259,6 +245,24 @@ const Gallery = () => {
               cloudFile.fileData ||
               null,
           });
+        } else {
+          const localFile = mergedFiles.find((item) =>
+            (cloudFileId && (item.mongoFileId === cloudFileId || item._id === cloudFileId)) ||
+            (cloudFile.localFileId && item.localFileId === cloudFile.localFileId)
+          );
+          if (localFile) {
+            Object.assign(localFile, {
+              mongoFileId: cloudFile.mongoFileId || cloudFile._id || cloudFile.id || localFile.mongoFileId,
+              fileUrl: cloudFile.fileUrl || localFile.fileUrl || null,
+              cloudinaryPublicId: cloudFile.cloudinaryPublicId || localFile.cloudinaryPublicId || null,
+              cloudinaryResourceType: cloudFile.cloudinaryResourceType || localFile.cloudinaryResourceType || null,
+              cloudinaryFormat: cloudFile.cloudinaryFormat || localFile.cloudinaryFormat || null,
+              categoryId: cloudFile.category?._id || cloudFile.category || localFile.categoryId || null,
+              isFavorite: cloudFile.isFavorite === true,
+              isDeleted: cloudFile.isDeleted === true,
+              syncStatus: "synced"
+            });
+          }
         }
       });
 
@@ -281,6 +285,15 @@ const Gallery = () => {
 
           return dateB - dateA;
         });
+
+      const activeFiles = mergedFiles.filter((file) => file.isDeleted !== true);
+      setStats({
+        images: activeFiles.filter((file) => file.fileType === "image").length,
+        videos: activeFiles.filter((file) => file.fileType === "video").length,
+        audio: activeFiles.filter((file) => file.fileType === "audio").length,
+        documents: activeFiles.filter((file) => file.fileType === "pdf").length,
+        favorites: activeFiles.filter((file) => file.isFavorite === true).length,
+      });
 
       setRecentFiles(
         sortedFiles.slice(0, 5)

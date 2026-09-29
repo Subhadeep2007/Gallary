@@ -944,6 +944,9 @@ const Camera = () => {
         }
 
 
+        let cloudSynced = false;
+
+
         try {
 
             setSaving(true);
@@ -1059,6 +1062,8 @@ const Camera = () => {
                     mongoFile._id
                 ) {
 
+                    cloudSynced = Boolean(mongoFile.fileUrl);
+
                     await updateFileByLocalId(
                         localFileId,
                         {
@@ -1129,11 +1134,11 @@ const Camera = () => {
             }
 
 
-            toast.success(
-                fileType === "image"
-                    ? "Photo saved to Gallery."
-                    : "Video saved to Gallery."
-            );
+            if (cloudSynced) {
+                toast.success(fileType === "image" ? "Photo saved to Gallery." : "Video saved to Gallery.");
+            } else {
+                toast("Saved on this browser only; cloud upload is pending. Keep site data until sync completes.");
+            }
 
 
             if (

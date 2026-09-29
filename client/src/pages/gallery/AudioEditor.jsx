@@ -1,4 +1,4 @@
-import {
+import{
     useEffect,
     useRef,
     useState
@@ -44,7 +44,8 @@ import {
 } from "../../services/storage/db.js";
 
 import {
-    createFile
+    createFile,
+    getFiles
 } from "../../services/file/file.service.js";
 
 
@@ -88,6 +89,116 @@ const createLocalFileId = () => {
         "-" +
         Math.random().toString(36).slice(2)
     );
+};
+
+
+const normalizeFilesResponse = (
+    response
+) => {
+
+    if (
+        Array.isArray(
+            response
+        )
+    ) {
+
+        return response;
+    }
+
+
+    if (
+        response &&
+        Array.isArray(
+            response.files
+        )
+    ) {
+
+        return response.files;
+    }
+
+
+    if (
+        response &&
+        Array.isArray(
+            response.data
+        )
+    ) {
+
+        return response.data;
+    }
+
+
+    if (
+        response &&
+        response.data &&
+        Array.isArray(
+            response.data.files
+        )
+    ) {
+
+        return response.data.files;
+    }
+
+
+    return [];
+};
+
+
+const getEditableFileData = async(
+    file
+) => {
+
+    if (
+        file &&
+        file.fileData instanceof Blob
+    ) {
+
+        return file.fileData;
+    }
+
+
+    if (
+        file &&
+        file.fileUrl
+    ) {
+
+        const response =
+            await fetch(
+                file.fileUrl
+            );
+
+
+        if (
+            !response.ok
+        ) {
+
+            throw new Error(
+                "Unable to download cloud audio."
+            );
+        }
+
+
+        const blob =
+            await response.blob();
+
+
+        return new File(
+            [
+                blob
+            ],
+            file.fileName ||
+                "audio",
+            {
+                type:
+                    file.mimeType ||
+                    blob.type ||
+                    "audio/webm"
+            }
+        );
+    }
+
+
+    return null;
 };
 
 
@@ -147,9 +258,57 @@ const getInputExtension = (
     file
 ) => {
 
+    const fileName =
+        String(
+            file &&
+            file.name
+                ? file.name
+                : ""
+        )
+            .toLowerCase();
+
+    const match =
+        fileName.match(
+            /\.([a-z0-9]+)$/
+        );
+
+    const extension =
+        match &&
+        match[1]
+            ? match[1]
+            : "";
+
+    const supported =
+        [
+            "mp3",
+            "wav",
+            "wave",
+            "ogg",
+            "oga",
+            "m4a",
+            "mp4",
+            "aac",
+            "webm",
+            "flac"
+        ];
+
+    if (
+        supported.includes(
+            extension
+        )
+    ) {
+
+        return extension === "wave"
+            ? "wav"
+            : extension;
+    }
+
     const mimeType =
         String(
-            file.type || ""
+            file &&
+            file.type
+                ? file.type
+                : ""
         ).toLowerCase();
 
     if (
@@ -183,8 +342,24 @@ const getInputExtension = (
         return "aac";
     }
 
+    if (
+        mimeType.includes("flac")
+    ) {
+        return "flac";
+    }
+
     return "webm";
 };
+
+
+/*
+ * App recordings use MediaRecorder, normally WebM/Opus.
+ * FFmpeg performs the source normalization before editing.
+ */
+/*
+ * App recordings use MediaRecorder, normally WebM/Opus.
+ * FFmpeg performs the source normalization before editing.
+ */
 
 
 const formatTime = (
@@ -497,30 +672,195 @@ const AudioEditor = () => {
 
             setLoadingFiles(true);
 
-            const files =
+
+            const localFiles =
                 await getAllFiles(
                     userId
                 );
 
-            const audios =
-                Array.isArray(files)
-                    ? files.filter(
+
+            const localAudios =
+                Array.isArray(
+                    localFiles
+                )
+                    ? localFiles.filter(
                         (file) => {
+
                             return (
                                 file.fileType ===
                                     "audio" &&
-                                file.fileData
+                                file.isDeleted !== true
                             );
+
                         }
                     )
                     : [];
 
-            setAudioFiles(
-                audios
+
+            let cloudAudios = [];
+
+
+            try {
+
+                const cloudResponse =
+                    await getFiles({
+                        fileType:
+                            "audio"
+                    });
+
+
+                const cloudFiles =
+                    normalizeFilesResponse(
+                        cloudResponse
+                    );
+
+
+                cloudAudios =
+                    Array.isArray(
+                        cloudFiles
+                    )
+                        ? cloudFiles.filter(
+                            (file) => {
+
+                                return (
+                                    (
+                                        file.fileType ===
+                                            "audio" ||
+                                        file.type ===
+                                            "audio"
+                                    ) &&
+                                    file.isDeleted !== true
+                                );
+
+                            }
+                        )
+                        : [];
+
+            } catch (cloudError) {
+
+                console.error(
+                    "Load cloud audio error:",
+                    cloudError
+                );
+            }
+
+
+            const mergedAudios =
+                [...localAudios];
+
+
+            cloudAudios.forEach(
+                (cloudFile) => {
+
+                    const cloudId =
+                        cloudFile._id ||
+                        cloudFile.id ||
+                        cloudFile.mongoFileId ||
+                        null;
+
+
+                    const existingIndex =
+                        mergedAudios.findIndex(
+                            (localFile) => {
+
+                                return (
+                                    (
+                                        cloudId &&
+                                        (
+                                            localFile.mongoFileId ===
+                                                cloudId ||
+                                            localFile._id ===
+                                                cloudId
+                                        )
+                                    ) ||
+                                    (
+                                        cloudFile.localFileId &&
+                                        localFile.localFileId ===
+                                            cloudFile.localFileId
+                                    )
+                                );
+
+                            }
+                        );
+
+
+                    const normalizedCloudFile = {
+
+                        ...cloudFile,
+
+                        mongoFileId:
+                            cloudFile.mongoFileId ||
+                            cloudFile._id ||
+                            cloudFile.id ||
+                            null,
+
+                        fileName:
+                            cloudFile.fileName ||
+                            cloudFile.name,
+
+                        fileType:
+                            cloudFile.fileType ||
+                            cloudFile.type ||
+                            "audio",
+
+                        mimeType:
+                            cloudFile.mimeType ||
+                            "audio/webm",
+
+                        fileUrl:
+                            cloudFile.fileUrl ||
+                            null,
+
+                        fileData:
+                            cloudFile.fileData ||
+                            null
+
+                    };
+
+
+                    if (
+                        existingIndex >= 0
+                    ) {
+
+                        const localFile =
+                            mergedAudios[
+                                existingIndex
+                            ];
+
+
+                        mergedAudios[
+                            existingIndex
+                        ] = {
+
+                            ...localFile,
+
+                            ...normalizedCloudFile,
+
+                            fileData:
+                                localFile.fileData ||
+                                normalizedCloudFile.fileData ||
+                                null
+
+                        };
+
+                    } else {
+
+                        mergedAudios.push(
+                            normalizedCloudFile
+                        );
+                    }
+
+                }
             );
 
+
+            setAudioFiles(
+                mergedAudios
+            );
+
+
             if (
-                audios.length > 0
+                mergedAudios.length > 0
             ) {
 
                 setSelectedIndex(
@@ -528,7 +868,7 @@ const AudioEditor = () => {
                 );
 
                 setSelectedFile(
-                    audios[0]
+                    mergedAudios[0]
                 );
 
             } else {
@@ -657,43 +997,172 @@ const AudioEditor = () => {
         if (
             !selectedFile
         ) {
+
             return;
         }
 
-        const url =
-            getPreviewUrl(
-                selectedFile.fileData
-            );
 
-        if (!url) {
-            return;
-        }
+        let cancelled = false;
 
-        if (
-            previewUrlRef.current
-        ) {
+        let previewUrl =
+            null;
 
-            URL.revokeObjectURL(
-                previewUrlRef.current
-            );
-        }
 
-        previewUrlRef.current =
-            url;
+        const loadSelectedAudio =
+            async() => {
 
-        if (
-            audioRef.current
-        ) {
+                try {
 
-            audioRef.current.src =
-                url;
+                    const fileData =
+                        await getEditableFileData(
+                            selectedFile
+                        );
 
-            audioRef.current.load();
-        }
 
-        resetControls();
+                    if (
+                        !fileData
+                    ) {
+
+                        toast.error(
+                            "Selected audio is not available."
+                        );
+
+                        return;
+                    }
+
+
+                    previewUrl =
+                        getPreviewUrl(
+                            fileData
+                        );
+
+
+                    if (
+                        !previewUrl
+                    ) {
+
+                        toast.error(
+                            "Unable to create audio preview."
+                        );
+
+                        return;
+                    }
+
+
+                    if (
+                        cancelled
+                    ) {
+
+                        return;
+                    }
+
+
+                    if (
+                        previewUrlRef.current
+                    ) {
+
+                        URL.revokeObjectURL(
+                            previewUrlRef.current
+                        );
+                    }
+
+
+                    previewUrlRef.current =
+                        previewUrl;
+
+
+                    if (
+                        audioRef.current
+                    ) {
+
+                        audioRef.current.src =
+                            previewUrl;
+
+                        audioRef.current.load();
+                    }
+
+
+                    if (
+                        !selectedFile.fileData
+                    ) {
+
+                        const updatedFile = {
+
+                            ...selectedFile,
+
+                            fileData
+
+                        };
+
+
+                        setSelectedFile(
+                            updatedFile
+                        );
+
+
+                        setAudioFiles(
+                            (currentFiles) => {
+
+                                return currentFiles.map(
+                                    (file) => {
+
+                                        const sameFile =
+                                            (
+                                                selectedFile.localFileId &&
+                                                file.localFileId ===
+                                                    selectedFile.localFileId
+                                            ) ||
+                                            (
+                                                selectedFile.mongoFileId &&
+                                                file.mongoFileId ===
+                                                    selectedFile.mongoFileId
+                                            );
+
+
+                                        return sameFile
+                                            ? {
+                                                ...file,
+                                                fileData
+                                            }
+                                            : file;
+                                    }
+                                );
+                            }
+                        );
+                    }
+
+
+                    resetControls();
+
+                } catch (error) {
+
+                    console.error(
+                        "Load selected audio error:",
+                        error
+                    );
+
+                    if (
+                        !cancelled
+                    ) {
+
+                        toast.error(
+                            error.message ||
+                            "Unable to open selected audio."
+                        );
+                    }
+
+                }
+
+            };
+
+
+        loadSelectedAudio();
+
 
         return () => {
+
+            cancelled = true;
+
 
             if (
                 audioRef.current
@@ -701,6 +1170,7 @@ const AudioEditor = () => {
 
                 audioRef.current.pause();
             }
+
         };
 
     }, [selectedFile]);
@@ -1009,6 +1479,29 @@ const AudioEditor = () => {
                     }
                 );
 
+                ffmpeg.on(
+                    "log",
+                    ({
+                        message
+                    }) => {
+
+                        if (
+                            message &&
+                            (
+                                message.toLowerCase().includes("error") ||
+                                message.toLowerCase().includes("invalid") ||
+                                message.toLowerCase().includes("failed")
+                            )
+                        ) {
+
+                            console.error(
+                                "FFmpeg:",
+                                message
+                            );
+                        }
+                    }
+                );
+
                 ffmpegEventsAttachedRef.current =
                     true;
             }
@@ -1159,8 +1652,7 @@ const AudioEditor = () => {
     ) => {
 
         if (
-            !selectedFile ||
-            !selectedFile.fileData
+            !selectedFile
         ) {
 
             toast.error(
@@ -1169,6 +1661,7 @@ const AudioEditor = () => {
 
             return null;
         }
+
 
         if (
             duration <= 0
@@ -1181,26 +1674,84 @@ const AudioEditor = () => {
             return null;
         }
 
+
+        let sourceFile = null;
+
+        try {
+
+            sourceFile =
+                await getEditableFileData(
+                    selectedFile
+                );
+
+        } catch (sourceError) {
+
+            console.error(
+                "Audio source load error:",
+                sourceError
+            );
+
+            toast.error(
+                sourceError &&
+                sourceError.message
+                    ? sourceError.message
+                    : "Unable to load selected audio."
+            );
+
+            return null;
+        }
+
+
+        if (
+            !sourceFile ||
+            !(sourceFile instanceof Blob)
+        ) {
+
+            toast.error(
+                "Selected audio is not available."
+            );
+
+            return null;
+        }
+
+
         const loaded =
             await loadFFmpeg();
 
-        if (!loaded) {
+
+        if (
+            !loaded
+        ) {
+
             return null;
         }
+
 
         const ffmpeg =
             ffmpegRef.current;
 
-        const extension =
+
+        const sourceExtension =
             getInputExtension(
-                selectedFile.fileData
+                sourceFile
             );
 
+
         const inputName =
-            `input_${Date.now()}.${extension}`;
+            `input_${Date.now()}_${Math.random().toString(36).slice(2)}.${sourceExtension}`;
+
+
+        const normalizedName =
+            `normalized_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`;
+
 
         const outputName =
-            `output_${Date.now()}.wav`;
+            `output_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`;
+
+
+        let inputWasWritten =
+            false;
+
 
         try {
 
@@ -1212,12 +1763,58 @@ const AudioEditor = () => {
                 0
             );
 
+
+            // =============================================
+            // WRITE ORIGINAL SOURCE
+            // =============================================
+
             await ffmpeg.writeFile(
                 inputName,
                 await fetchFile(
-                    selectedFile.fileData
+                    sourceFile
                 )
             );
+
+            inputWasWritten =
+                true;
+
+
+            // =============================================
+            // NORMALIZE TO PCM WAV
+            // =============================================
+            // Critical for app-recorded WebM/Opus audio.
+            // FFmpeg handles the decode instead of relying
+            // on browser AudioContext support.
+            // =============================================
+
+            let activeInputName =
+                inputName;
+
+
+            if (
+                sourceExtension !==
+                    "wav"
+            ) {
+
+                await ffmpeg.exec(
+                    [
+                        "-i",
+                        inputName,
+                        "-map",
+                        "0:a:0",
+                        "-vn",
+                        "-c:a",
+                        "pcm_s16le",
+                        "-ar",
+                        "48000",
+                        normalizedName
+                    ]
+                );
+
+                activeInputName =
+                    normalizedName;
+            }
+
 
             let command = [];
 
@@ -1230,40 +1827,57 @@ const AudioEditor = () => {
                 action === "trim"
             ) {
 
+                const trimDuration =
+                    Math.max(
+                        0.1,
+                        Number(
+                            trimEnd -
+                            trimStart
+                        )
+                    );
+
+
                 const audioFilters =
                     getAudioFilters(
                         true
                     );
 
+
                 command = [
+
                     "-i",
-                    inputName,
+                    activeInputName,
+
                     "-ss",
                     String(
                         trimStart
                     ),
-                    "-to",
+
+                    "-t",
                     String(
-                        trimEnd
-                    )
-                ];
+                        trimDuration
+                    ),
 
-                if (
-                    audioFilters
-                ) {
+                    ...(audioFilters
+                        ? [
+                            "-af",
+                            audioFilters
+                        ]
+                        : []),
 
-                    command.push(
-                        "-af",
-                        audioFilters
-                    );
-                }
+                    "-map",
+                    "0:a:0",
 
-                command.push(
                     "-vn",
+
                     "-c:a",
                     "pcm_s16le",
+
+                    "-ar",
+                    "48000",
+
                     outputName
-                );
+                ];
             }
 
 
@@ -1276,31 +1890,49 @@ const AudioEditor = () => {
             ) {
 
                 const firstDuration =
-                    cutStart;
+                    Math.max(
+                        0,
+                        Number(
+                            cutStart
+                        )
+                    );
+
 
                 const secondStart =
-                    cutEnd;
+                    Math.max(
+                        0,
+                        Number(
+                            cutEnd
+                        )
+                    );
+
 
                 const filterParts = [];
+
 
                 filterParts.push(
                     `[0:a]atrim=start=0:end=${firstDuration},asetpts=PTS-STARTPTS[a1]`
                 );
 
+
                 filterParts.push(
                     `[0:a]atrim=start=${secondStart},asetpts=PTS-STARTPTS[a2]`
                 );
+
 
                 filterParts.push(
                     `[a1][a2]concat=n=2:v=0:a=1[joined]`
                 );
 
+
                 const postFilters = [];
+
 
                 const tempo =
                     getTempoFilter(
                         speed
                     );
+
 
                 if (
                     tempo !== 1
@@ -1311,6 +1943,7 @@ const AudioEditor = () => {
                     );
                 }
 
+
                 if (
                     volume !== 100
                 ) {
@@ -1319,6 +1952,7 @@ const AudioEditor = () => {
                         `volume=${volume / 100}`
                     );
                 }
+
 
                 if (
                     fadeIn > 0
@@ -1329,40 +1963,42 @@ const AudioEditor = () => {
                     );
                 }
 
+
                 if (
                     fadeOut > 0
                 ) {
 
                     const keptDuration =
-                        duration -
-                        (
-                            cutEnd -
-                            cutStart
-                        );
-
-                    const safeDuration =
                         Math.max(
                             0.1,
-                            keptDuration
+                            duration -
+                            (
+                                cutEnd -
+                                cutStart
+                            )
                         );
+
 
                     const safeFade =
                         Math.min(
                             fadeOut,
-                            safeDuration
+                            keptDuration
                         );
+
 
                     const fadeStart =
                         Math.max(
                             0,
-                            safeDuration -
+                            keptDuration -
                             safeFade
                         );
+
 
                     postFilters.push(
                         `afade=t=out:st=${fadeStart}:d=${safeFade}`
                     );
                 }
+
 
                 if (
                     postFilters.length >
@@ -1380,16 +2016,28 @@ const AudioEditor = () => {
                     );
                 }
 
+
                 command = [
+
                     "-i",
-                    inputName,
+                    activeInputName,
+
                     "-filter_complex",
-                    filterParts.join(";"),
+                    filterParts.join(
+                        ";"
+                    ),
+
                     "-map",
                     "[outa]",
+
                     "-vn",
+
                     "-c:a",
                     "pcm_s16le",
+
+                    "-ar",
+                    "48000",
+
                     outputName
                 ];
             }
@@ -1408,47 +2056,60 @@ const AudioEditor = () => {
                         true
                     );
 
+
                 command = [
+
                     "-i",
-                    inputName
-                ];
+                    activeInputName,
 
-                if (
-                    audioFilters
-                ) {
+                    ...(audioFilters
+                        ? [
+                            "-af",
+                            audioFilters
+                        ]
+                        : []),
 
-                    command.push(
-                        "-af",
-                        audioFilters
-                    );
-                }
+                    "-map",
+                    "0:a:0",
 
-                command.push(
                     "-vn",
+
                     "-c:a",
                     "pcm_s16le",
+
+                    "-ar",
+                    "48000",
+
                     outputName
+                ];
+            }
+
+
+            if (
+                command.length === 0
+            ) {
+
+                throw new Error(
+                    "Invalid audio processing action."
                 );
             }
 
 
-            // =============================================
-            // EXECUTE
-            // =============================================
-
             await ffmpeg.exec(
                 command
             );
+
 
             const data =
                 await ffmpeg.readFile(
                     outputName
                 );
 
+
             const outputFile =
                 new File(
                     [
-                        data.buffer
+                        data
                     ],
                     `${getBaseName(selectedFile.fileName)}_edited_${Date.now()}.wav`,
                     {
@@ -1457,10 +2118,12 @@ const AudioEditor = () => {
                     }
                 );
 
+
             const previewUrl =
                 URL.createObjectURL(
                     outputFile
                 );
+
 
             if (
                 editedPreviewUrlRef.current
@@ -1471,8 +2134,10 @@ const AudioEditor = () => {
                 );
             }
 
+
             editedPreviewUrlRef.current =
                 previewUrl;
+
 
             setEditedFile({
 
@@ -1480,8 +2145,8 @@ const AudioEditor = () => {
                     outputFile,
 
                 previewUrl
-
             });
+
 
             toast.success(
                 action === "trim"
@@ -1490,6 +2155,7 @@ const AudioEditor = () => {
                         ? "Selected audio section removed."
                         : "Audio adjustments generated."
             );
+
 
             return outputFile;
 
@@ -1501,26 +2167,50 @@ const AudioEditor = () => {
             );
 
             toast.error(
-                "Audio processing failed. Try a shorter or smaller audio file."
+                error &&
+                error.message
+                    ? error.message
+                    : "Audio processing failed."
             );
 
             return null;
 
         } finally {
 
+            if (
+                inputWasWritten
+            ) {
+
+                try {
+
+                    await ffmpeg.deleteFile(
+                        inputName
+                    );
+
+                } catch (deleteError) {
+
+                    console.error(
+                        "Delete audio input error:",
+                        deleteError
+                    );
+                }
+            }
+
+
             try {
 
                 await ffmpeg.deleteFile(
-                    inputName
+                    normalizedName
                 );
 
             } catch (deleteError) {
 
                 console.error(
-                    "Delete audio input error:",
+                    "Delete normalized audio error:",
                     deleteError
                 );
             }
+
 
             try {
 
@@ -1535,6 +2225,7 @@ const AudioEditor = () => {
                     deleteError
                 );
             }
+
 
             setProcessing(
                 false
@@ -1754,13 +2445,24 @@ const AudioEditor = () => {
                             false,
 
                         isEdited:
-                            true
+                            true,
+
+                        // ========================================
+                        // ACTUAL EDITED AUDIO FILE
+                        // ========================================
+
+                        file:
+                            file
                     });
 
 
+                // createFile() normally returns response.data.
+                // Keep a fallback for direct data-object returns.
                 const mongoFile =
                     response &&
-                    response.data;
+                    response.data
+                        ? response.data
+                        : response;
 
 
                 if (
@@ -1773,6 +2475,26 @@ const AudioEditor = () => {
                         {
                             mongoFileId:
                                 mongoFile._id,
+
+                            // ========================================
+                            // CLOUDINARY METADATA
+                            // ========================================
+
+                            fileUrl:
+                                mongoFile.fileUrl ||
+                                null,
+
+                            cloudinaryPublicId:
+                                mongoFile.cloudinaryPublicId ||
+                                null,
+
+                            cloudinaryResourceType:
+                                mongoFile.cloudinaryResourceType ||
+                                null,
+
+                            cloudinaryFormat:
+                                mongoFile.cloudinaryFormat ||
+                                null,
 
                             syncStatus:
                                 "synced",

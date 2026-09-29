@@ -277,6 +277,15 @@ const FavoritePreview = ({
                 previewUrl
             );
 
+        } else if (
+            file &&
+            file.fileUrl
+        ) {
+
+            setUrl(
+                file.fileUrl
+            );
+
         } else {
 
             setUrl(null);
@@ -285,7 +294,10 @@ const FavoritePreview = ({
 
         return () => {
 
-            if (previewUrl) {
+            if (
+                previewUrl &&
+                previewUrl.startsWith("blob:")
+            ) {
 
                 URL.revokeObjectURL(
                     previewUrl
@@ -735,12 +747,37 @@ const Favorites = () => {
     ) => {
 
         if (
-            !file ||
+            !file
+        ) {
+
+            toast.error(
+                "File not available."
+            );
+
+            return;
+        }
+
+
+        if (
+            file.fileUrl
+        ) {
+
+            window.open(
+                file.fileUrl,
+                "_blank",
+                "noopener,noreferrer"
+            );
+
+            return;
+        }
+
+
+        if (
             !file.fileData
         ) {
 
             toast.error(
-                "This file is not available locally."
+                "This file is not available."
             );
 
             return;
@@ -772,9 +809,14 @@ const Favorites = () => {
 
         setTimeout(() => {
 
-            URL.revokeObjectURL(
-                url
-            );
+            if (
+                url.startsWith("blob:")
+            ) {
+
+                URL.revokeObjectURL(
+                    url
+                );
+            }
 
         }, 60000);
     };
@@ -784,75 +826,175 @@ const Favorites = () => {
     // DOWNLOAD
     // =====================================================
 
-    const handleDownload = (
+    const handleDownload = async (
         file
     ) => {
 
         if (
-            !file ||
-            !file.fileData
+            !file
         ) {
 
             toast.error(
-                "This file is not available locally."
+                "File not available."
             );
 
             return;
         }
 
 
-        const url =
-            createObjectUrl(
-                file.fileData,
-                file.mimeType
+        try {
+
+            if (
+                file.fileData
+            ) {
+
+                const url =
+                    createObjectUrl(
+                        file.fileData,
+                        file.mimeType
+                    );
+
+
+                if (!url) {
+
+                    toast.error(
+                        "Unable to download file."
+                    );
+
+                    return;
+                }
+
+
+                const link =
+                    document.createElement(
+                        "a"
+                    );
+
+
+                link.href =
+                    url;
+
+
+                link.download =
+                    file.fileName ||
+                    "download";
+
+
+                document.body.appendChild(
+                    link
+                );
+
+
+                link.click();
+
+
+                document.body.removeChild(
+                    link
+                );
+
+
+                setTimeout(() => {
+
+                    if (
+                        url.startsWith("blob:")
+                    ) {
+
+                        URL.revokeObjectURL(
+                            url
+                        );
+                    }
+
+                }, 5000);
+
+                return;
+            }
+
+
+            if (
+                file.fileUrl
+            ) {
+
+                const response =
+                    await fetch(
+                        file.fileUrl
+                    );
+
+
+                if (
+                    !response.ok
+                ) {
+
+                    throw new Error(
+                        "Unable to fetch cloud file."
+                    );
+                }
+
+
+                const blob =
+                    await response.blob();
+
+
+                const url =
+                    URL.createObjectURL(
+                        blob
+                    );
+
+
+                const link =
+                    document.createElement(
+                        "a"
+                    );
+
+
+                link.href =
+                    url;
+
+
+                link.download =
+                    file.fileName ||
+                    "download";
+
+
+                document.body.appendChild(
+                    link
+                );
+
+
+                link.click();
+
+
+                document.body.removeChild(
+                    link
+                );
+
+
+                setTimeout(() => {
+
+                    URL.revokeObjectURL(
+                        url
+                    );
+
+                }, 5000);
+
+                return;
+            }
+
+
+            toast.error(
+                "This file is not available."
             );
 
+        } catch (error) {
 
-        if (!url) {
+            console.error(
+                "Download error:",
+                error
+            );
 
             toast.error(
                 "Unable to download file."
             );
-
-            return;
         }
-
-
-        const link =
-            document.createElement(
-                "a"
-            );
-
-
-        link.href =
-            url;
-
-
-        link.download =
-            file.fileName ||
-            "download";
-
-
-        document.body.appendChild(
-            link
-        );
-
-
-        link.click();
-
-
-        document.body.removeChild(
-            link
-        );
-
-
-        setTimeout(() => {
-
-            URL.revokeObjectURL(
-                url
-            );
-
-        }, 5000);
     };
 
 
@@ -865,12 +1007,11 @@ const Favorites = () => {
     ) => {
 
         if (
-            !file ||
-            !file.fileData
+            !file
         ) {
 
             toast.error(
-                "This file is not available locally."
+                "File not available."
             );
 
             return;
@@ -891,50 +1032,81 @@ const Favorites = () => {
 
         try {
 
-            const shareBlob =
-                createBlobFromData(
-                    file.fileData,
-                    file.mimeType
-                );
+            if (
+                file.fileData
+            ) {
+
+                const shareBlob =
+                    createBlobFromData(
+                        file.fileData,
+                        file.mimeType
+                    );
 
 
-            if (!shareBlob) {
+                if (!shareBlob) {
 
-                toast.error(
-                    "Unable to read this file."
-                );
+                    toast.error(
+                        "Unable to read this file."
+                    );
+
+                    return;
+                }
+
+
+                const shareFile =
+                    new File(
+                        [
+                            shareBlob
+                        ],
+                        file.fileName ||
+                        "file",
+                        {
+                            type:
+                                file.mimeType ||
+                                shareBlob.type ||
+                                "application/octet-stream"
+                        }
+                    );
+
+
+                await navigator.share({
+
+                    title:
+                        file.fileName ||
+                        "Favorite file",
+
+                    files: [
+                        shareFile
+                    ]
+
+                });
 
                 return;
             }
 
 
-            const shareFile =
-                new File(
-                    [
-                        shareBlob
-                    ],
-                    file.fileName ||
-                    "file",
-                    {
-                        type:
-                            file.mimeType ||
-                            shareBlob.type ||
-                            "application/octet-stream"
-                    }
-                );
+            if (
+                file.fileUrl
+            ) {
+
+                await navigator.share({
+
+                    title:
+                        file.fileName ||
+                        "Favorite file",
+
+                    url:
+                        file.fileUrl
+
+                });
+
+                return;
+            }
 
 
-            await navigator.share({
-
-                title:
-                    file.fileName ||
-                    "Favorite file",
-
-                files: [
-                    shareFile
-                ]
-
-            });
+            toast.error(
+                "This file is not available."
+            );
 
         } catch (error) {
 

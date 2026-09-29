@@ -102,6 +102,62 @@ const fileSchema = new mongoose.Schema({
 
 
     // ========================================
+    // CLOUDINARY FILE
+    // ========================================
+
+    fileUrl: {
+
+        type: String,
+
+        default: null,
+
+        trim: true
+
+    },
+
+
+    cloudinaryPublicId: {
+
+        type: String,
+
+        default: null,
+
+        trim: true
+
+    },
+
+
+    cloudinaryResourceType: {
+
+        type: String,
+
+        enum: [
+
+            "image",
+
+            "video",
+
+            "raw"
+
+        ],
+
+        default: null
+
+    },
+
+
+    cloudinaryFormat: {
+
+        type: String,
+
+        default: null,
+
+        trim: true
+
+    },
+
+
+    // ========================================
     // CATEGORY
     // ========================================
 

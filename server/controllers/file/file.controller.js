@@ -17,7 +17,7 @@ import {
 
 
 // ========================================
-// CREATE FILE METADATA
+// CREATE FILE
 // ========================================
 
 const create = async(
@@ -28,6 +28,23 @@ const create = async(
 
     try {
 
+        // ========================================
+        // FILE REQUIRED
+        // ========================================
+
+        if (!req.file) {
+
+            return res.status(400).json({
+
+                success: false,
+
+                message: "File is required"
+
+            });
+
+        }
+
+
         const file =
             await createFile({
 
@@ -35,13 +52,18 @@ const create = async(
 
                 localFileId: req.body.localFileId,
 
-                fileName: req.body.fileName,
+                fileName: req.body.fileName ||
+                    req.file.originalname,
 
                 fileType: req.body.fileType,
 
-                mimeType: req.body.mimeType,
+                mimeType: req.body.mimeType ||
+                    req.file.mimetype,
 
-                size: req.body.size,
+                size: Number(
+                    req.body.size ||
+                    req.file.size
+                ),
 
                 categoryId: req.body.categoryId,
 
@@ -49,7 +71,9 @@ const create = async(
 
                 isCopy: req.body.isCopy,
 
-                isEdited: req.body.isEdited
+                isEdited: req.body.isEdited,
+
+                file: req.file
 
             });
 
@@ -58,13 +82,15 @@ const create = async(
 
             success: true,
 
-            message: "File metadata created successfully",
+            message: "File uploaded successfully",
 
             data: file
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -127,7 +153,9 @@ const sync = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -165,7 +193,8 @@ const getAll = async(
         } = req.query;
 
 
-        let favoriteFilter = null;
+        let favoriteFilter =
+            null;
 
 
         if (
@@ -176,13 +205,15 @@ const getAll = async(
                 isFavorite === "true"
             ) {
 
-                favoriteFilter = true;
+                favoriteFilter =
+                    true;
 
             } else if (
                 isFavorite === "false"
             ) {
 
-                favoriteFilter = false;
+                favoriteFilter =
+                    false;
 
             } else {
 
@@ -231,7 +262,9 @@ const getAll = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -272,7 +305,9 @@ const getOne = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -315,7 +350,9 @@ const rename = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -358,7 +395,9 @@ const changeCategory = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -394,16 +433,16 @@ const favorite = async(
             success: true,
 
             message: result.isFavorite ?
-
                 "File added to favorites" :
-
                 "File removed from favorites",
 
             data: result
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -442,7 +481,9 @@ const favorites = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -483,7 +524,9 @@ const remove = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -522,7 +565,9 @@ const trash = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -563,7 +608,9 @@ const restore = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -608,7 +655,9 @@ const permanentDelete = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -651,7 +700,9 @@ const emptyTrashController = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 
@@ -690,7 +741,9 @@ const statistics = async(
 
         });
 
-    } catch (error) {
+    } catch (
+        error
+    ) {
 
         next(error);
 

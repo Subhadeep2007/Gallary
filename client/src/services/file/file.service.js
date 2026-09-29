@@ -2,15 +2,170 @@ import api from "../api/api.js";
 
 
 // ========================================
-// CREATE FILE METADATA
+// BUILD FILE FORM DATA
 // ========================================
 
-export const createFile = async(fileData) => {
+const buildFileFormData = (
+    fileData
+) => {
+
+    const formData =
+        new FormData();
+
+
+    // ========================================
+    // ACTUAL FILE
+    // ========================================
+
+    const actualFile =
+        fileData.file ||
+        fileData.fileData;
+
+
+    if (actualFile) {
+
+        formData.append(
+            "file",
+            actualFile
+        );
+
+    }
+
+
+    // ========================================
+    // FILE METADATA
+    // ========================================
+
+    if (fileData.localFileId) {
+
+        formData.append(
+            "localFileId",
+            fileData.localFileId
+        );
+
+    }
+
+
+    if (fileData.fileName) {
+
+        formData.append(
+            "fileName",
+            fileData.fileName
+        );
+
+    }
+
+
+    if (fileData.fileType) {
+
+        formData.append(
+            "fileType",
+            fileData.fileType
+        );
+
+    }
+
+
+    if (fileData.mimeType) {
+
+        formData.append(
+            "mimeType",
+            fileData.mimeType
+        );
+
+    }
+
+
+    if (
+        fileData.size !== undefined &&
+        fileData.size !== null
+    ) {
+
+        formData.append(
+            "size",
+            String(fileData.size)
+        );
+
+    }
+
+
+    if (
+        fileData.categoryId !== undefined &&
+        fileData.categoryId !== null &&
+        fileData.categoryId !== ""
+    ) {
+
+        formData.append(
+            "categoryId",
+            fileData.categoryId
+        );
+
+    }
+
+
+    if (
+        fileData.parentFileId !== undefined &&
+        fileData.parentFileId !== null &&
+        fileData.parentFileId !== ""
+    ) {
+
+        formData.append(
+            "parentFileId",
+            fileData.parentFileId
+        );
+
+    }
+
+
+    if (
+        fileData.isCopy !== undefined &&
+        fileData.isCopy !== null
+    ) {
+
+        formData.append(
+            "isCopy",
+            String(fileData.isCopy)
+        );
+
+    }
+
+
+    if (
+        fileData.isEdited !== undefined &&
+        fileData.isEdited !== null
+    ) {
+
+        formData.append(
+            "isEdited",
+            String(fileData.isEdited)
+        );
+
+    }
+
+
+    return formData;
+
+};
+
+
+// ========================================
+// CREATE FILE
+// ========================================
+
+export const createFile = async(
+    fileData
+) => {
+
+    const formData =
+        buildFileFormData(
+            fileData
+        );
+
 
     const response =
         await api.post(
             "/files",
-            fileData
+            formData
         );
 
 
@@ -33,17 +188,27 @@ export const createFileCopy = async(
     fileData
 ) => {
 
+    const copyData = {
+
+        ...fileData,
+
+        isCopy: true,
+
+        isEdited: false
+
+    };
+
+
+    const formData =
+        buildFileFormData(
+            copyData
+        );
+
+
     const response =
         await api.post(
-            "/files", {
-
-                ...fileData,
-
-                isCopy: true,
-
-                isEdited: false
-
-            }
+            "/files",
+            formData
         );
 
 
@@ -66,17 +231,27 @@ export const createEditedFile = async(
     fileData
 ) => {
 
+    const editedData = {
+
+        ...fileData,
+
+        isCopy: false,
+
+        isEdited: true
+
+    };
+
+
+    const formData =
+        buildFileFormData(
+            editedData
+        );
+
+
     const response =
         await api.post(
-            "/files", {
-
-                ...fileData,
-
-                isCopy: false,
-
-                isEdited: true
-
-            }
+            "/files",
+            formData
         );
 
 
@@ -89,7 +264,9 @@ export const createEditedFile = async(
 // SYNC FILE METADATA
 // ========================================
 
-export const syncFile = async(fileData) => {
+export const syncFile = async(
+    fileData
+) => {
 
     const response =
         await api.post(

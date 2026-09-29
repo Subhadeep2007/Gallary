@@ -313,6 +313,15 @@ const TrashPreview = ({
                 previewUrl
             );
 
+        } else if (
+            file &&
+            file.fileUrl
+        ) {
+
+            setUrl(
+                file.fileUrl
+            );
+
         } else {
 
             setUrl(null);
@@ -321,7 +330,10 @@ const TrashPreview = ({
 
         return () => {
 
-            if (previewUrl) {
+            if (
+                previewUrl &&
+                previewUrl.startsWith("blob:")
+            ) {
 
                 URL.revokeObjectURL(
                     previewUrl
@@ -809,12 +821,37 @@ const Trash = () => {
     ) => {
 
         if (
-            !file ||
+            !file
+        ) {
+
+            toast.error(
+                "File not available."
+            );
+
+            return;
+        }
+
+
+        if (
+            file.fileUrl
+        ) {
+
+            window.open(
+                file.fileUrl,
+                "_blank",
+                "noopener,noreferrer"
+            );
+
+            return;
+        }
+
+
+        if (
             !file.fileData
         ) {
 
             toast.error(
-                "This file is not available locally."
+                "This file is not available."
             );
 
             return;
@@ -846,9 +883,14 @@ const Trash = () => {
 
         setTimeout(() => {
 
-            URL.revokeObjectURL(
-                url
-            );
+            if (
+                url.startsWith("blob:")
+            ) {
+
+                URL.revokeObjectURL(
+                    url
+                );
+            }
 
         }, 60000);
     };
@@ -858,75 +900,183 @@ const Trash = () => {
     // DOWNLOAD
     // =====================================================
 
-    const handleDownload = (
+    const handleDownload = async (
         file
     ) => {
 
         if (
-            !file ||
-            !file.fileData
+            !file
         ) {
 
             toast.error(
-                "This file is not available locally."
+                "File not available."
             );
 
             return;
         }
 
 
-        const url =
-            createObjectUrl(
-                file.fileData,
-                file.mimeType
+        try {
+
+            // ========================================
+            // LOCAL INDEXEDDB FILE
+            // ========================================
+
+            if (
+                file.fileData
+            ) {
+
+                const url =
+                    createObjectUrl(
+                        file.fileData,
+                        file.mimeType
+                    );
+
+
+                if (!url) {
+
+                    toast.error(
+                        "Unable to download file."
+                    );
+
+                    return;
+                }
+
+
+                const link =
+                    document.createElement(
+                        "a"
+                    );
+
+
+                link.href =
+                    url;
+
+
+                link.download =
+                    file.fileName ||
+                    "download";
+
+
+                document.body.appendChild(
+                    link
+                );
+
+
+                link.click();
+
+
+                document.body.removeChild(
+                    link
+                );
+
+
+                setTimeout(() => {
+
+                    if (
+                        url.startsWith("blob:")
+                    ) {
+
+                        URL.revokeObjectURL(
+                            url
+                        );
+                    }
+
+                }, 5000);
+
+                return;
+            }
+
+
+            // ========================================
+            // CLOUDINARY FILE
+            // ========================================
+
+            if (
+                file.fileUrl
+            ) {
+
+                const response =
+                    await fetch(
+                        file.fileUrl
+                    );
+
+
+                if (
+                    !response.ok
+                ) {
+
+                    throw new Error(
+                        "Unable to fetch cloud file."
+                    );
+                }
+
+
+                const blob =
+                    await response.blob();
+
+
+                const url =
+                    URL.createObjectURL(
+                        blob
+                    );
+
+
+                const link =
+                    document.createElement(
+                        "a"
+                    );
+
+
+                link.href =
+                    url;
+
+
+                link.download =
+                    file.fileName ||
+                    "download";
+
+
+                document.body.appendChild(
+                    link
+                );
+
+
+                link.click();
+
+
+                document.body.removeChild(
+                    link
+                );
+
+
+                setTimeout(() => {
+
+                    URL.revokeObjectURL(
+                        url
+                    );
+
+                }, 5000);
+
+                return;
+            }
+
+
+            toast.error(
+                "This file is not available."
             );
 
+        } catch (error) {
 
-        if (!url) {
+            console.error(
+                "Download trash file error:",
+                error
+            );
 
             toast.error(
                 "Unable to download file."
             );
-
-            return;
         }
-
-
-        const link =
-            document.createElement(
-                "a"
-            );
-
-
-        link.href =
-            url;
-
-
-        link.download =
-            file.fileName ||
-            "download";
-
-
-        document.body.appendChild(
-            link
-        );
-
-
-        link.click();
-
-
-        document.body.removeChild(
-            link
-        );
-
-
-        setTimeout(() => {
-
-            URL.revokeObjectURL(
-                url
-            );
-
-        }, 5000);
     };
 
 
@@ -939,12 +1089,11 @@ const Trash = () => {
     ) => {
 
         if (
-            !file ||
-            !file.fileData
+            !file
         ) {
 
             toast.error(
-                "This file is not available locally."
+                "File not available."
             );
 
             return;
@@ -965,50 +1114,89 @@ const Trash = () => {
 
         try {
 
-            const shareBlob =
-                createBlobFromData(
-                    file.fileData,
-                    file.mimeType
-                );
+            // ========================================
+            // LOCAL INDEXEDDB FILE
+            // ========================================
+
+            if (
+                file.fileData
+            ) {
+
+                const shareBlob =
+                    createBlobFromData(
+                        file.fileData,
+                        file.mimeType
+                    );
 
 
-            if (!shareBlob) {
+                if (!shareBlob) {
 
-                toast.error(
-                    "Unable to read this file."
-                );
+                    toast.error(
+                        "Unable to read this file."
+                    );
+
+                    return;
+                }
+
+
+                const shareFile =
+                    new File(
+                        [
+                            shareBlob
+                        ],
+                        file.fileName ||
+                        "file",
+                        {
+                            type:
+                                file.mimeType ||
+                                shareBlob.type ||
+                                "application/octet-stream"
+                        }
+                    );
+
+
+                await navigator.share({
+
+                    title:
+                        file.fileName ||
+                        "Deleted file",
+
+                    files: [
+                        shareFile
+                    ]
+
+                });
 
                 return;
             }
 
 
-            const shareFile =
-                new File(
-                    [
-                        shareBlob
-                    ],
-                    file.fileName ||
-                    "file",
-                    {
-                        type:
-                            file.mimeType ||
-                            shareBlob.type ||
-                            "application/octet-stream"
-                    }
-                );
+            // ========================================
+            // CLOUDINARY FILE
+            // ========================================
+
+            if (
+                file.fileUrl
+            ) {
+
+                await navigator.share({
+
+                    title:
+                        file.fileName ||
+                        "Deleted file",
+
+                    url:
+                        file.fileUrl
+
+                });
+
+                return;
+            }
 
 
-            await navigator.share({
-
-                title:
-                    file.fileName ||
-                    "Deleted file",
-
-                files: [
-                    shareFile
-                ]
-
-            });
+            toast.error(
+                "This file is not available."
+            );
 
         } catch (error) {
 

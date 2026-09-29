@@ -38,7 +38,8 @@ import {
 } from "../../services/storage/db.js";
 
 import {
-    createFile
+    createFile,
+    getFiles
 } from "../../services/file/file.service.js";
 
 
@@ -82,6 +83,116 @@ const createLocalFileId = () => {
         "-" +
         Math.random().toString(36).slice(2)
     );
+};
+
+
+const normalizeFilesResponse = (
+    response
+) => {
+
+    if (
+        Array.isArray(
+            response
+        )
+    ) {
+
+        return response;
+    }
+
+
+    if (
+        response &&
+        Array.isArray(
+            response.files
+        )
+    ) {
+
+        return response.files;
+    }
+
+
+    if (
+        response &&
+        Array.isArray(
+            response.data
+        )
+    ) {
+
+        return response.data;
+    }
+
+
+    if (
+        response &&
+        response.data &&
+        Array.isArray(
+            response.data.files
+        )
+    ) {
+
+        return response.data.files;
+    }
+
+
+    return [];
+};
+
+
+const getEditableFileData = async(
+    file
+) => {
+
+    if (
+        file &&
+        file.fileData instanceof Blob
+    ) {
+
+        return file.fileData;
+    }
+
+
+    if (
+        file &&
+        file.fileUrl
+    ) {
+
+        const response =
+            await fetch(
+                file.fileUrl
+            );
+
+
+        if (
+            !response.ok
+        ) {
+
+            throw new Error(
+                "Unable to download cloud image."
+            );
+        }
+
+
+        const blob =
+            await response.blob();
+
+
+        return new File(
+            [
+                blob
+            ],
+            file.fileName ||
+                "image",
+            {
+                type:
+                    file.mimeType ||
+                    blob.type ||
+                    "image/jpeg"
+            }
+        );
+    }
+
+
+    return null;
 };
 
 
@@ -483,33 +594,189 @@ const PhotoEditor = () => {
             setLoadingFiles(true);
 
 
-            const files =
+            const localFiles =
                 await getAllFiles(
                     userId
                 );
 
 
-            const images =
-                Array.isArray(files)
-                    ? files.filter(
+            const localImages =
+                Array.isArray(
+                    localFiles
+                )
+                    ? localFiles.filter(
                         (file) => {
                             return (
                                 file.fileType ===
                                     "image" &&
-                                file.fileData
+                                file.isDeleted !== true
                             );
                         }
                     )
                     : [];
 
 
+            let cloudImages = [];
+
+
+            try {
+
+                const cloudResponse =
+                    await getFiles({
+                        fileType:
+                            "image"
+                    });
+
+
+                const cloudFiles =
+                    normalizeFilesResponse(
+                        cloudResponse
+                    );
+
+
+                cloudImages =
+                    Array.isArray(
+                        cloudFiles
+                    )
+                        ? cloudFiles.filter(
+                            (file) => {
+                                return (
+                                    (
+                                        file.fileType ===
+                                            "image" ||
+                                        file.type ===
+                                            "image"
+                                    ) &&
+                                    file.isDeleted !== true
+                                );
+                            }
+                        )
+                        : [];
+
+            } catch (cloudError) {
+
+                console.error(
+                    "Load cloud images error:",
+                    cloudError
+                );
+            }
+
+
+            const mergedImages =
+                [...localImages];
+
+
+            cloudImages.forEach(
+                (cloudFile) => {
+
+                    const cloudId =
+                        cloudFile._id ||
+                        cloudFile.id ||
+                        cloudFile.mongoFileId ||
+                        null;
+
+
+                    const existingIndex =
+                        mergedImages.findIndex(
+                            (localFile) => {
+
+                                return (
+                                    (
+                                        cloudId &&
+                                        (
+                                            localFile.mongoFileId ===
+                                                cloudId ||
+                                            localFile._id ===
+                                                cloudId
+                                        )
+                                    ) ||
+                                    (
+                                        cloudFile.localFileId &&
+                                        localFile.localFileId ===
+                                            cloudFile.localFileId
+                                    )
+                                );
+
+                            }
+                        );
+
+
+                    const normalizedCloudFile = {
+
+                        ...cloudFile,
+
+                        mongoFileId:
+                            cloudFile.mongoFileId ||
+                            cloudFile._id ||
+                            cloudFile.id ||
+                            null,
+
+                        fileName:
+                            cloudFile.fileName ||
+                            cloudFile.name,
+
+                        fileType:
+                            cloudFile.fileType ||
+                            cloudFile.type ||
+                            "image",
+
+                        mimeType:
+                            cloudFile.mimeType ||
+                            "image/jpeg",
+
+                        fileUrl:
+                            cloudFile.fileUrl ||
+                            null,
+
+                        fileData:
+                            cloudFile.fileData ||
+                            null
+
+                    };
+
+
+                    if (
+                        existingIndex >= 0
+                    ) {
+
+                        const localFile =
+                            mergedImages[
+                                existingIndex
+                            ];
+
+
+                        mergedImages[
+                            existingIndex
+                        ] = {
+
+                            ...localFile,
+
+                            ...normalizedCloudFile,
+
+                            fileData:
+                                localFile.fileData ||
+                                normalizedCloudFile.fileData ||
+                                null
+
+                        };
+
+                    } else {
+
+                        mergedImages.push(
+                            normalizedCloudFile
+                        );
+                    }
+                }
+            );
+
+
             setImageFiles(
-                images
+                mergedImages
             );
 
 
             if (
-                images.length > 0
+                mergedImages.length > 0
             ) {
 
                 setSelectedIndex(
@@ -517,7 +784,7 @@ const PhotoEditor = () => {
                 );
 
                 setSelectedFile(
-                    images[0]
+                    mergedImages[0]
                 );
 
             } else {
@@ -575,64 +842,197 @@ const PhotoEditor = () => {
         }
 
 
-        const previewUrl =
-            getPreviewUrl(
-                selectedFile.fileData
-            );
+        let cancelled = false;
+
+        let previewUrl =
+            null;
 
 
-        if (!previewUrl) {
+        const loadSelectedImage =
+            async() => {
 
-            return;
-        }
+                try {
 
-
-        if (
-            previewUrlRef.current
-        ) {
-
-            URL.revokeObjectURL(
-                previewUrlRef.current
-            );
-        }
+                    const fileData =
+                        await getEditableFileData(
+                            selectedFile
+                        );
 
 
-        previewUrlRef.current =
-            previewUrl;
+                    if (
+                        !fileData
+                    ) {
+
+                        toast.error(
+                            "Selected image is not available."
+                        );
+
+                        return;
+                    }
 
 
-        const image =
-            new Image();
+                    previewUrl =
+                        getPreviewUrl(
+                            fileData
+                        );
 
 
-        image.onload = () => {
+                    if (
+                        !previewUrl
+                    ) {
 
-            imageRef.current =
-                image;
+                        toast.error(
+                            "Unable to create image preview."
+                        );
 
-
-            resetEditor(
-                false
-            );
-        };
-
-
-        image.onerror = () => {
-
-            toast.error(
-                "Unable to open selected image."
-            );
-        };
+                        return;
+                    }
 
 
-        image.src =
-            previewUrl;
+                    if (
+                        cancelled
+                    ) {
+
+                        return;
+                    }
+
+
+                    if (
+                        previewUrlRef.current
+                    ) {
+
+                        URL.revokeObjectURL(
+                            previewUrlRef.current
+                        );
+                    }
+
+
+                    previewUrlRef.current =
+                        previewUrl;
+
+
+                    const loadedImage =
+                        new Image();
+
+
+                    loadedImage.onload =
+                        () => {
+
+                            if (
+                                cancelled
+                            ) {
+
+                                return;
+                            }
+
+
+                            imageRef.current =
+                                loadedImage;
+
+
+                            resetEditor(
+                                false
+                            );
+
+                            drawCanvas();
+                        };
+
+
+                    loadedImage.onerror =
+                        () => {
+
+                            if (
+                                !cancelled
+                            ) {
+
+                                toast.error(
+                                    "Unable to open selected image."
+                                );
+                            }
+                        };
+
+
+                    loadedImage.src =
+                        previewUrl;
+
+
+                    if (
+                        !selectedFile.fileData
+                    ) {
+
+                        const updatedFile = {
+
+                            ...selectedFile,
+
+                            fileData
+
+                        };
+
+
+                        setSelectedFile(
+                            updatedFile
+                        );
+
+
+                        setImageFiles(
+                            (currentFiles) => {
+
+                                return currentFiles.map(
+                                    (file) => {
+
+                                        const sameFile =
+                                            (
+                                                selectedFile.localFileId &&
+                                                file.localFileId ===
+                                                    selectedFile.localFileId
+                                            ) ||
+                                            (
+                                                selectedFile.mongoFileId &&
+                                                file.mongoFileId ===
+                                                    selectedFile.mongoFileId
+                                            );
+
+
+                                        return sameFile
+                                            ? {
+                                                ...file,
+                                                fileData
+                                            }
+                                            : file;
+                                    }
+                                );
+                            }
+                        );
+                    }
+
+                } catch (error) {
+
+                    console.error(
+                        "Load selected image error:",
+                        error
+                    );
+
+                    if (
+                        !cancelled
+                    ) {
+
+                        toast.error(
+                            error.message ||
+                            "Unable to open selected image."
+                        );
+                    }
+
+                }
+
+            };
+
+
+        loadSelectedImage();
 
 
         return () => {
 
-            image.onload =
-                null;
+            cancelled = true;
 
         };
 
@@ -1806,13 +2206,23 @@ const PhotoEditor = () => {
                                         false,
 
                                     isEdited:
-                                        true
+                                        true,
+
+                                    // =================================================
+                                    // ACTUAL EDITED FILE
+                                    // =================================================
+                                    // Required by file.service.js so the
+                                    // backend can upload the file to Cloudinary.
+                                    // =================================================
+
+                                    file
+
                                 });
 
 
+                            // createFile() already returns response.data
                             const mongoFile =
-                                response &&
-                                response.data;
+                                response;
 
 
                             if (
@@ -1823,14 +2233,36 @@ const PhotoEditor = () => {
                                 await updateFileByLocalId(
                                     localFileId,
                                     {
+
                                         mongoFileId:
                                             mongoFile._id,
+
+                                        // =================================================
+                                        // CLOUDINARY METADATA
+                                        // =================================================
+
+                                        fileUrl:
+                                            mongoFile.fileUrl ||
+                                            null,
+
+                                        cloudinaryPublicId:
+                                            mongoFile.cloudinaryPublicId ||
+                                            null,
+
+                                        cloudinaryResourceType:
+                                            mongoFile.cloudinaryResourceType ||
+                                            null,
+
+                                        cloudinaryFormat:
+                                            mongoFile.cloudinaryFormat ||
+                                            null,
 
                                         syncStatus:
                                             "synced",
 
                                         updatedAt:
                                             new Date()
+
                                     }
                                 );
 
@@ -1839,11 +2271,13 @@ const PhotoEditor = () => {
                                 await updateFileByLocalId(
                                     localFileId,
                                     {
+
                                         syncStatus:
                                             "pending",
 
                                         updatedAt:
                                             new Date()
+
                                     }
                                 );
                             }
@@ -1859,11 +2293,13 @@ const PhotoEditor = () => {
                             await updateFileByLocalId(
                                 localFileId,
                                 {
+
                                     syncStatus:
                                         "pending",
 
                                     updatedAt:
                                         new Date()
+
                                 }
                             );
                         }

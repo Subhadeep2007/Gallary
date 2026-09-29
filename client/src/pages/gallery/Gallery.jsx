@@ -21,6 +21,10 @@ import {
   getFileCounts,
 } from "../../services/storage/db.js";
 
+import {
+  getFiles,
+} from "../../services/file/file.service.js";
+
 const Gallery = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -156,6 +160,39 @@ const Gallery = () => {
       const counts = await getFileCounts(userId);
       const files = await getAllFiles(userId);
 
+      let cloudFiles = [];
+
+      // ========================================
+      // CLOUDINARY FILE METADATA
+      // ========================================
+      // Cloudinary files are represented by
+      // MongoDB metadata. Local IndexedDB data
+      // is still used first for offline access.
+      // ========================================
+
+      try {
+        const cloudResponse = await getFiles();
+
+        if (Array.isArray(cloudResponse)) {
+          cloudFiles = cloudResponse;
+        } else if (
+          cloudResponse &&
+          Array.isArray(cloudResponse.files)
+        ) {
+          cloudFiles = cloudResponse.files;
+        } else if (
+          cloudResponse &&
+          Array.isArray(cloudResponse.data)
+        ) {
+          cloudFiles = cloudResponse.data;
+        }
+      } catch (cloudError) {
+        console.error(
+          "Failed to load cloud gallery data:",
+          cloudError
+        );
+      }
+
       const audioCount = files.filter((file) => {
         return file.fileType === "audio";
       }).length;
@@ -168,16 +205,93 @@ const Gallery = () => {
         favorites: counts.favorites || 0,
       });
 
-      const sortedFiles = [...files].sort((a, b) => {
-        const dateA = new Date(a.createdAt || 0).getTime();
-        const dateB = new Date(b.createdAt || 0).getTime();
+      // ========================================
+      // MERGE LOCAL + CLOUD FILES
+      // ========================================
 
-        return dateB - dateA;
+      const mergedFiles = [
+        ...files,
+      ];
+
+      cloudFiles.forEach((cloudFile) => {
+
+        const cloudFileId =
+          cloudFile._id ||
+          cloudFile.id ||
+          cloudFile.mongoFileId;
+
+        const alreadyExists =
+          mergedFiles.some((localFile) => {
+
+            return (
+              (cloudFileId &&
+                (
+                  localFile.mongoFileId ===
+                    cloudFileId ||
+                  localFile._id ===
+                    cloudFileId
+                )) ||
+              (
+                cloudFile.localFileId &&
+                localFile.localFileId ===
+                  cloudFile.localFileId
+              )
+            );
+
+          });
+
+        if (!alreadyExists) {
+
+          mergedFiles.push({
+            ...cloudFile,
+
+            mongoFileId:
+              cloudFile.mongoFileId ||
+              cloudFile._id ||
+              cloudFile.id ||
+              null,
+
+            fileUrl:
+              cloudFile.fileUrl ||
+              null,
+
+            fileData:
+              cloudFile.fileData ||
+              null,
+          });
+        }
       });
 
-      setRecentFiles(sortedFiles.slice(0, 5));
+      const sortedFiles =
+        [...mergedFiles].sort((a, b) => {
+
+          const dateA =
+            new Date(
+              a.createdAt ||
+              a.updatedAt ||
+              0
+            ).getTime();
+
+          const dateB =
+            new Date(
+              b.createdAt ||
+              b.updatedAt ||
+              0
+            ).getTime();
+
+          return dateB - dateA;
+        });
+
+      setRecentFiles(
+        sortedFiles.slice(0, 5)
+      );
+
     } catch (error) {
-      console.error("Failed to load gallery data:", error);
+
+      console.error(
+        "Failed to load gallery data:",
+        error
+      );
 
       setStats({
         images: 0,
@@ -188,7 +302,9 @@ const Gallery = () => {
       });
 
       setRecentFiles([]);
+
     } finally {
+
       setLoading(false);
     }
   };
@@ -329,11 +445,11 @@ const Gallery = () => {
 
           <div>
             <p className="text-sm font-medium text-white">
-              Private Local Storage
+              Cloud + Local Storage
             </p>
 
             <p className="mt-1 text-xs text-slate-500">
-              Your gallery files are stored locally for offline-friendly access.
+              Gallery metadata is synced with the cloud while local files remain available for offline-friendly access.
             </p>
           </div>
         </div>

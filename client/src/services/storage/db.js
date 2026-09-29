@@ -38,6 +38,17 @@ db.version(2).stores({
 
 
 // ========================================
+// VERSION 3
+// ========================================
+// Cloudinary metadata
+// ========================================
+
+db.version(3).stores({
+    files: "++localId, localFileId, mongoFileId, userId, fileName, fileType, mimeType, size, categoryId, isFavorite, isDeleted, deletedAt, syncStatus, createdAt, updatedAt, fileUrl, cloudinaryPublicId, cloudinaryResourceType, cloudinaryFormat"
+});
+
+
+// ========================================
 // GENERATE LOCAL FILE ID
 // ========================================
 
@@ -149,9 +160,329 @@ export const addFile = async(fileData) => {
 
         isCopy,
 
-        isEdited
+        isEdited,
+
+        // ========================================
+        // CLOUDINARY METADATA
+        // ========================================
+
+        fileUrl: fileData.fileUrl || null,
+
+        cloudinaryPublicId: fileData.cloudinaryPublicId || null,
+
+        cloudinaryResourceType: fileData.cloudinaryResourceType || null,
+
+        cloudinaryFormat: fileData.cloudinaryFormat || null
 
     });
+
+};
+
+
+// ========================================
+// SAVE / UPDATE CLOUD FILE METADATA
+// ========================================
+// Added for cross-browser/device support.
+// No actual Blob is required for a cloud-only
+// record because the shared file lives in Cloudinary.
+// ========================================
+
+export const saveCloudFileMetadata = async(
+    fileData
+) => {
+
+    if (!fileData ||
+        !fileData.localFileId
+    ) {
+
+        throw new Error(
+            "Local file ID is required"
+        );
+
+    }
+
+
+    const existingFile =
+        await getFileByLocalId(
+            fileData.localFileId
+        );
+
+
+    if (
+        existingFile
+    ) {
+
+        return await db.files.update(
+
+            existingFile.localId,
+
+            {
+
+                mongoFileId: fileData.mongoFileId ||
+                    existingFile.mongoFileId ||
+                    null,
+
+                userId: fileData.userId ||
+                    existingFile.userId,
+
+                fileName: fileData.fileName ||
+                    existingFile.fileName,
+
+                fileType: fileData.fileType ||
+                    existingFile.fileType,
+
+                mimeType: fileData.mimeType ||
+                    existingFile.mimeType,
+
+                size: fileData.size !== undefined ?
+                    fileData.size :
+                    existingFile.size,
+
+                categoryId: fileData.categoryId ||
+                    existingFile.categoryId ||
+                    null,
+
+                isFavorite: fileData.isFavorite === true ?
+                    true :
+                    existingFile.isFavorite === true,
+
+                isDeleted: fileData.isDeleted === true ?
+                    true :
+                    existingFile.isDeleted === true,
+
+                deletedAt: fileData.deletedAt ||
+                    existingFile.deletedAt ||
+                    null,
+
+                syncStatus: "synced",
+
+                parentFileId: fileData.parentFileId ||
+                    existingFile.parentFileId ||
+                    null,
+
+                isCopy: fileData.isCopy === true ?
+                    true :
+                    existingFile.isCopy === true,
+
+                isEdited: fileData.isEdited === true ?
+                    true :
+                    existingFile.isEdited === true,
+
+                fileUrl: fileData.fileUrl ||
+                    existingFile.fileUrl ||
+                    null,
+
+                cloudinaryPublicId: fileData.cloudinaryPublicId ||
+                    existingFile.cloudinaryPublicId ||
+                    null,
+
+                cloudinaryResourceType: fileData.cloudinaryResourceType ||
+                    existingFile.cloudinaryResourceType ||
+                    null,
+
+                cloudinaryFormat: fileData.cloudinaryFormat ||
+                    existingFile.cloudinaryFormat ||
+                    null,
+
+                updatedAt: new Date().toISOString()
+
+            }
+
+        );
+
+    }
+
+
+    return await db.files.add({
+
+        localFileId: fileData.localFileId,
+
+        mongoFileId: fileData.mongoFileId ||
+            null,
+
+        userId: fileData.userId,
+
+        fileName: fileData.fileName ||
+            fileData.name,
+
+        fileType: fileData.fileType ||
+            fileData.type,
+
+        mimeType: fileData.mimeType,
+
+        size: fileData.size || 0,
+
+        fileData: fileData.fileData ||
+            null,
+
+        categoryId: fileData.categoryId ||
+            null,
+
+        isFavorite: fileData.isFavorite === true ?
+            true :
+            false,
+
+        isDeleted: fileData.isDeleted === true ?
+            true :
+            false,
+
+        deletedAt: fileData.deletedAt ||
+            null,
+
+        syncStatus: "synced",
+
+        createdAt: fileData.createdAt ||
+            new Date().toISOString(),
+
+        updatedAt: new Date().toISOString(),
+
+        parentFileId: fileData.parentFileId ||
+            null,
+
+        isCopy: fileData.isCopy === true ?
+            true :
+            false,
+
+        isEdited: fileData.isEdited === true ?
+            true :
+            false,
+
+        fileUrl: fileData.fileUrl ||
+            null,
+
+        cloudinaryPublicId: fileData.cloudinaryPublicId ||
+            null,
+
+        cloudinaryResourceType: fileData.cloudinaryResourceType ||
+            null,
+
+        cloudinaryFormat: fileData.cloudinaryFormat ||
+            null
+
+    });
+
+};
+
+
+// ========================================
+// UPDATE CLOUD FILE METADATA
+// ========================================
+
+export const updateCloudFileMetadata = async(
+    localFileId,
+    cloudData
+) => {
+
+    const file =
+        await getFileByLocalId(
+            localFileId
+        );
+
+
+    if (!file) {
+
+        throw new Error(
+            "Local file not found"
+        );
+
+    }
+
+
+    return await db.files.update(
+
+        file.localId,
+
+        {
+
+            fileUrl: cloudData.fileUrl ||
+                file.fileUrl ||
+                null,
+
+            cloudinaryPublicId: cloudData.cloudinaryPublicId ||
+                file.cloudinaryPublicId ||
+                null,
+
+            cloudinaryResourceType: cloudData.cloudinaryResourceType ||
+                file.cloudinaryResourceType ||
+                null,
+
+            cloudinaryFormat: cloudData.cloudinaryFormat ||
+                file.cloudinaryFormat ||
+                null,
+
+            mongoFileId: cloudData.mongoFileId ||
+                file.mongoFileId ||
+                null,
+
+            syncStatus: "synced",
+
+            updatedAt: new Date().toISOString()
+
+        }
+
+    );
+
+};
+
+
+// ========================================
+// GET CLOUD FILE BY LOCAL ID
+// ========================================
+
+export const getCloudFileByLocalId = async(
+    localFileId
+) => {
+
+    const file =
+        await getFileByLocalId(
+            localFileId
+        );
+
+
+    if (!file) {
+
+        return null;
+
+    }
+
+
+    if (
+        file.fileUrl
+    ) {
+
+        return file;
+
+    }
+
+
+    return null;
+
+};
+
+
+// ========================================
+// GET ALL CLOUD FILES
+// ========================================
+
+export const getCloudFiles = async(
+    userId
+) => {
+
+    const files =
+        await getAllFiles(
+            userId
+        );
+
+
+    return files.filter(
+        (file) => {
+
+            return Boolean(
+                file.fileUrl
+            );
+
+        }
+    );
 
 };
 

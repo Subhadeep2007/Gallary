@@ -40,6 +40,7 @@ import {
 
 import {
     createFile,
+    getFiles,
     renameFile as renameMongoFile,
     toggleFavorite as toggleMongoFavorite,
     moveFileToTrash as moveMongoFileToTrash
@@ -332,6 +333,15 @@ const FilePreview = ({
                 );
 
             setPreviewUrl(url);
+
+        } else if (
+            file &&
+            file.fileUrl
+        ) {
+
+            setPreviewUrl(
+                file.fileUrl
+            );
 
         } else {
 
@@ -779,23 +789,298 @@ const MyFiles = () => {
 
             setLoading(true);
 
+
             const localFiles =
                 await getAllFiles(
                     userId
                 );
 
-            if (
-                Array.isArray(localFiles)
+
+            let cloudFiles = [];
+
+
+            try {
+
+                const response =
+                    await getFiles();
+
+
+                if (
+                    response &&
+                    Array.isArray(
+                        response.data
+                    )
+                ) {
+
+                    cloudFiles =
+                        response.data;
+
+                }
+
+            } catch (
+                cloudError
             ) {
 
-                setFiles(
-                    localFiles
+                console.error(
+                    "Cloud files load error:",
+                    cloudError
                 );
 
-            } else {
-
-                setFiles([]);
             }
+
+
+            const localList =
+                Array.isArray(localFiles)
+                    ? localFiles
+                    : [];
+
+
+            const cloudList =
+                Array.isArray(cloudFiles)
+                    ? cloudFiles
+                    : [];
+
+
+            const mergedFiles = [];
+
+
+            // ========================================
+            // MERGE LOCAL FILES WITH CLOUD FILES
+            // ========================================
+
+            for (
+                let i = 0;
+                i < localList.length;
+                i++
+            ) {
+
+                const localFile =
+                    localList[i];
+
+
+                const matchedCloudFile =
+                    cloudList.find(
+                        (cloudFile) => {
+
+                            return (
+                                cloudFile.localFileId ===
+                                localFile.localFileId
+                            );
+
+                        }
+                    );
+
+
+                if (
+                    matchedCloudFile
+                ) {
+
+                    mergedFiles.push({
+
+                        ...localFile,
+
+                        mongoFileId:
+                            matchedCloudFile._id,
+
+                        fileUrl:
+                            matchedCloudFile.fileUrl ||
+                            localFile.fileUrl ||
+                            null,
+
+                        cloudinaryPublicId:
+                            matchedCloudFile.cloudinaryPublicId ||
+                            localFile.cloudinaryPublicId ||
+                            null,
+
+                        cloudinaryResourceType:
+                            matchedCloudFile.cloudinaryResourceType ||
+                            localFile.cloudinaryResourceType ||
+                            null,
+
+                        cloudinaryFormat:
+                            matchedCloudFile.cloudinaryFormat ||
+                            localFile.cloudinaryFormat ||
+                            null,
+
+                        fileName:
+                            matchedCloudFile.fileName ||
+                            localFile.fileName,
+
+                        fileType:
+                            matchedCloudFile.fileType ||
+                            localFile.fileType,
+
+                        mimeType:
+                            matchedCloudFile.mimeType ||
+                            localFile.mimeType,
+
+                        size:
+                            matchedCloudFile.size !== undefined
+                                ? matchedCloudFile.size
+                                : localFile.size,
+
+                        isFavorite:
+                            matchedCloudFile.isFavorite === true
+                                ? true
+                                : false,
+
+                        isDeleted:
+                            matchedCloudFile.isDeleted === true
+                                ? true
+                                : false,
+
+                        syncStatus:
+                            "synced"
+
+                    });
+
+                } else {
+
+                    mergedFiles.push(
+                        localFile
+                    );
+
+                }
+
+            }
+
+
+            // ========================================
+            // ADD CLOUD-ONLY FILES
+            // ========================================
+
+            for (
+                let i = 0;
+                i < cloudList.length;
+                i++
+            ) {
+
+                const cloudFile =
+                    cloudList[i];
+
+
+                const alreadyExists =
+                    mergedFiles.some(
+                        (item) => {
+
+                            return (
+                                item.localFileId ===
+                                cloudFile.localFileId
+                            );
+
+                        }
+                    );
+
+
+                if (
+                    !alreadyExists
+                ) {
+
+                    mergedFiles.push({
+
+                        localId:
+                            null,
+
+                        localFileId:
+                            cloudFile.localFileId,
+
+                        mongoFileId:
+                            cloudFile._id,
+
+                        userId,
+
+                        fileName:
+                            cloudFile.fileName,
+
+                        fileType:
+                            cloudFile.fileType,
+
+                        mimeType:
+                            cloudFile.mimeType,
+
+                        size:
+                            cloudFile.size,
+
+                        fileData:
+                            null,
+
+                        fileUrl:
+                            cloudFile.fileUrl ||
+                            null,
+
+                        cloudinaryPublicId:
+                            cloudFile.cloudinaryPublicId ||
+                            null,
+
+                        cloudinaryResourceType:
+                            cloudFile.cloudinaryResourceType ||
+                            null,
+
+                        cloudinaryFormat:
+                            cloudFile.cloudinaryFormat ||
+                            null,
+
+                        categoryId:
+                            cloudFile.category &&
+                            cloudFile.category._id
+                                ? cloudFile.category._id
+                                : null,
+
+                        isFavorite:
+                            cloudFile.isFavorite === true
+                                ? true
+                                : false,
+
+                        isDeleted:
+                            cloudFile.isDeleted === true
+                                ? true
+                                : false,
+
+                        deletedAt:
+                            cloudFile.deletedAt ||
+                            null,
+
+                        syncStatus:
+                            "synced",
+
+                        parentFileId:
+                            cloudFile.parentFile ||
+                            null,
+
+                        isCopy:
+                            cloudFile.isCopy === true
+                                ? true
+                                : false,
+
+                        isEdited:
+                            cloudFile.isEdited === true
+                                ? true
+                                : false,
+
+                        createdAt:
+                            cloudFile.createdAt,
+
+                        updatedAt:
+                            cloudFile.updatedAt
+
+                    });
+
+                }
+
+            }
+
+
+            setFiles(
+                mergedFiles.filter(
+                    (file) => {
+
+                        return (
+                            file.isDeleted !== true
+                        );
+
+                    }
+                )
+            );
 
         } catch (error) {
 
@@ -815,7 +1100,6 @@ const MyFiles = () => {
             setLoading(false);
         }
     };
-
 
     useEffect(() => {
 
@@ -1088,7 +1372,10 @@ const MyFiles = () => {
                             false,
 
                         isEdited:
-                            false
+                            false,
+
+                            file:
+                                file
                     });
 
 
@@ -1108,7 +1395,23 @@ const MyFiles = () => {
                             mongoFileId:
                                 mongoFile._id,
 
-                            syncStatus:
+                            
+
+                                fileUrl:
+                                    mongoFile.fileUrl ||
+                                    null,
+
+                                cloudinaryPublicId:
+                                    mongoFile.cloudinaryPublicId ||
+                                    null,
+
+                                cloudinaryResourceType:
+                                    mongoFile.cloudinaryResourceType ||
+                                    null,
+
+                                cloudinaryFormat:
+                                    mongoFile.cloudinaryFormat ||
+                                    null,syncStatus:
                                 "synced",
 
                             updatedAt:
@@ -1321,29 +1624,48 @@ const MyFiles = () => {
         file
     ) => {
 
-        if (
-            !file ||
-            !file.fileData
-        ) {
+        if (!file) {
 
             toast.error(
-                "This file is not available locally."
+                "This file is not available."
             );
 
             return;
         }
 
 
-        const url =
-            getPreviewUrl(
-                file.fileData
-            );
+        let url = null;
+
+        let shouldRevoke =
+            false;
+
+
+        if (
+            file.fileData
+        ) {
+
+            url =
+                getPreviewUrl(
+                    file.fileData
+                );
+
+            shouldRevoke =
+                true;
+
+        } else if (
+            file.fileUrl
+        ) {
+
+            url =
+                file.fileUrl;
+
+        }
 
 
         if (!url) {
 
             toast.error(
-                "Unable to open this file."
+                "This file is not available."
             );
 
             return;
@@ -1356,13 +1678,19 @@ const MyFiles = () => {
         );
 
 
-        setTimeout(() => {
+        if (
+            shouldRevoke
+        ) {
 
-            URL.revokeObjectURL(
-                url
-            );
+            setTimeout(() => {
 
-        }, 60000);
+                URL.revokeObjectURL(
+                    url
+                );
+
+            }, 60000);
+
+        }
     };
 
 
@@ -1374,23 +1702,36 @@ const MyFiles = () => {
         file
     ) => {
 
-        if (
-            !file ||
-            !file.fileData
-        ) {
+        if (!file) {
 
             toast.error(
-                "This file is not available locally."
+                "This file is not available."
             );
 
             return;
         }
 
 
-        const url =
-            getPreviewUrl(
-                file.fileData
-            );
+        let url = null;
+
+
+        if (
+            file.fileData
+        ) {
+
+            url =
+                getPreviewUrl(
+                    file.fileData
+                );
+
+        } else if (
+            file.fileUrl
+        ) {
+
+            url =
+                file.fileUrl;
+
+        }
 
 
         if (!url) {
@@ -1595,19 +1936,26 @@ const MyFiles = () => {
             }
 
 
-            await updateFileByLocalId(
-                file.localFileId,
-                {
-                    isFavorite:
-                        nextFavorite,
+            if (
+                file.localId !== null &&
+                file.localId !== undefined
+            ) {
 
-                    syncStatus:
-                        "synced",
+                await updateFileByLocalId(
+                    file.localFileId,
+                    {
+                        isFavorite:
+                            nextFavorite,
 
-                    updatedAt:
-                        new Date()
-                }
-            );
+                        syncStatus:
+                            "synced",
+
+                        updatedAt:
+                            new Date()
+                    }
+                );
+
+            }
 
 
             await loadFiles();
@@ -1708,21 +2056,28 @@ const MyFiles = () => {
             }
 
 
-            await updateFileByLocalId(
-                file.localFileId,
-                {
-                    fileName:
-                        newName,
+            if (
+                file.localId !== null &&
+                file.localId !== undefined
+            ) {
 
-                    syncStatus:
-                        file.mongoFileId
-                            ? "synced"
-                            : "pending",
+                await updateFileByLocalId(
+                    file.localFileId,
+                    {
+                        fileName:
+                            newName,
 
-                    updatedAt:
-                        new Date()
-                }
-            );
+                        syncStatus:
+                            file.mongoFileId
+                                ? "synced"
+                                : "pending",
+
+                        updatedAt:
+                            new Date()
+                    }
+                );
+
+            }
 
 
             await loadFiles();
@@ -1999,9 +2354,16 @@ const MyFiles = () => {
             }
 
 
-            await moveFileToTrash(
-                file.localFileId
-            );
+            if (
+                file.localId !== null &&
+                file.localId !== undefined
+            ) {
+
+                await moveFileToTrash(
+                    file.localFileId
+                );
+
+            }
 
 
             await loadFiles();

@@ -67,6 +67,9 @@ from "../middleware/auth.middleware.js";
 import validate
 from "../middleware/validate.middleware.js";
 
+import upload
+from "../middleware/upload.middleware.js";
+
 
 // ========================================
 // ROUTER
@@ -86,12 +89,14 @@ router.use(
 
 
 // ========================================
-// CREATE FILE METADATA
+// CREATE FILE
 // ========================================
 
 router.post(
 
     "/",
+
+    upload.single("file"),
 
     createFileSchema,
 
@@ -110,7 +115,7 @@ router.post(
 
     "/sync",
 
-    syncFileSchema,
+    createFileSchema,
 
     validate,
 

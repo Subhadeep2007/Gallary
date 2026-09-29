@@ -1,8 +1,27 @@
 import mongoose from "mongoose";
 
+import {
+    v2 as cloudinary
+} from "cloudinary";
+
 import File from "../../models/file.model.js";
 import Category from "../../models/category.model.js";
 import User from "../../models/user.model.js";
+
+
+// ========================================
+// CLOUDINARY CONFIGURATION
+// ========================================
+
+cloudinary.config({
+
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+
+    api_key: process.env.CLOUDINARY_API_KEY,
+
+    api_secret: process.env.CLOUDINARY_API_SECRET
+
+});
 
 
 // =========================================================
@@ -138,11 +157,199 @@ const checkCategoryOwnership = async({
 
 
 // =========================================================
-// CREATE FILE METADATA
+// GET CLOUDINARY RESOURCE TYPE
 // =========================================================
-//
-// Actual file is stored in IndexedDB.
-// This creates only the MongoDB metadata record.
+
+const getCloudinaryResourceType = (
+    fileType
+) => {
+
+    if (
+        fileType === "image"
+    ) {
+
+        return "image";
+
+    }
+
+
+    if (
+        fileType === "video"
+    ) {
+
+        return "video";
+
+    }
+
+
+    return "raw";
+
+};
+
+
+// =========================================================
+// UPLOAD FILE TO CLOUDINARY
+// =========================================================
+
+const uploadToCloudinary = async({
+    file,
+    fileType,
+    userId
+}) => {
+
+    if (!file) {
+
+        throw createError(
+            "File is required",
+            400
+        );
+
+    }
+
+
+    if (!file.buffer) {
+
+        throw createError(
+            "File buffer is not available",
+            400
+        );
+
+    }
+
+
+    const resourceType =
+        getCloudinaryResourceType(
+            fileType
+        );
+
+
+    const folder =
+        `digital-gallery/${userId}`;
+
+
+    return new Promise(
+        (
+            resolve,
+            reject
+        ) => {
+
+            const uploadStream =
+                cloudinary.uploader.upload_stream(
+
+                    {
+                        folder,
+
+                        resource_type: resourceType,
+
+                        use_filename: true,
+
+                        unique_filename: true,
+
+                        overwrite: false,
+
+                        filename_override: file.originalname
+
+                    },
+
+                    (
+                        error,
+                        result
+                    ) => {
+
+                        if (error) {
+
+                            reject(
+                                error
+                            );
+
+                            return;
+
+                        }
+
+
+                        if (!result) {
+
+                            reject(
+                                new Error(
+                                    "Cloudinary upload failed"
+                                )
+                            );
+
+                            return;
+
+                        }
+
+
+                        resolve(
+                            result
+                        );
+
+                    }
+
+                );
+
+
+            uploadStream.end(
+                file.buffer
+            );
+
+        }
+    );
+
+};
+
+
+// =========================================================
+// DELETE FILE FROM CLOUDINARY
+// =========================================================
+
+const deleteFromCloudinary = async({
+    publicId,
+    resourceType
+}) => {
+
+    if (!publicId) {
+
+        return null;
+
+    }
+
+
+    try {
+
+        const result =
+            await cloudinary.uploader.destroy(
+
+                publicId,
+
+                {
+                    resource_type: resourceType || "image",
+
+                    type: "upload"
+
+                }
+
+            );
+
+
+        return result;
+
+    } catch (error) {
+
+        console.error(
+            "Cloudinary delete error:",
+            error
+        );
+
+        return null;
+
+    }
+
+};
+
+
+// =========================================================
+// CREATE FILE
 // =========================================================
 
 const createFile = async({
@@ -155,7 +362,8 @@ const createFile = async({
     categoryId = null,
     parentFileId = null,
     isCopy = false,
-    isEdited = false
+    isEdited = false,
+    file
 }) => {
 
     await checkUser(
@@ -301,10 +509,26 @@ const createFile = async({
 
 
     // ========================================
+    // CLOUDINARY UPLOAD
+    // ========================================
+
+    const cloudinaryResult =
+        await uploadToCloudinary({
+
+            file,
+
+            fileType,
+
+            userId
+
+        });
+
+
+    // ========================================
     // CREATE
     // ========================================
 
-    const file =
+    const savedFile =
         await File.create({
 
             user: userId,
@@ -318,6 +542,14 @@ const createFile = async({
             mimeType: mimeType.trim(),
 
             size,
+
+            fileUrl: cloudinaryResult.secure_url,
+
+            cloudinaryPublicId: cloudinaryResult.public_id,
+
+            cloudinaryResourceType: cloudinaryResult.resource_type,
+
+            cloudinaryFormat: cloudinaryResult.format || null,
 
             category: categoryId,
 
@@ -338,17 +570,13 @@ const createFile = async({
         });
 
 
-    return file;
+    return savedFile;
 
 };
 
 
 // =========================================================
 // SYNC FILE METADATA
-// =========================================================
-//
-// Used when an offline file becomes online and its
-// metadata needs to be synchronized with MongoDB.
 // =========================================================
 
 const syncFile = async({
@@ -1161,11 +1389,6 @@ const restoreFile = async({
 // =========================================================
 // PERMANENT DELETE
 // =========================================================
-//
-// Only MongoDB metadata is deleted here.
-// The actual file is inside IndexedDB and must be
-// removed from the user's device by the PWA.
-// =========================================================
 
 const permanentlyDeleteFile = async({
     userId,
@@ -1211,6 +1434,29 @@ const permanentlyDeleteFile = async({
     }
 
 
+    // ========================================
+    // DELETE CLOUDINARY FILE
+    // ========================================
+
+    if (
+        file.cloudinaryPublicId
+    ) {
+
+        await deleteFromCloudinary({
+
+            publicId: file.cloudinaryPublicId,
+
+            resourceType: file.cloudinaryResourceType
+
+        });
+
+    }
+
+
+    // ========================================
+    // DELETE MONGODB METADATA
+    // ========================================
+
     await File.deleteOne({
 
         _id: fileId,
@@ -1243,6 +1489,53 @@ const emptyTrash = async({
         userId
     );
 
+
+    const trashFiles =
+        await File.find({
+
+            user: userId,
+
+            isDeleted: true
+
+        })
+        .select(
+            "_id cloudinaryPublicId cloudinaryResourceType"
+        )
+        .lean();
+
+
+    // ========================================
+    // DELETE CLOUDINARY FILES
+    // ========================================
+
+    for (
+        let i = 0; i < trashFiles.length; i++
+    ) {
+
+        const file =
+            trashFiles[i];
+
+
+        if (
+            file.cloudinaryPublicId
+        ) {
+
+            await deleteFromCloudinary({
+
+                publicId: file.cloudinaryPublicId,
+
+                resourceType: file.cloudinaryResourceType
+
+            });
+
+        }
+
+    }
+
+
+    // ========================================
+    // DELETE MONGODB RECORDS
+    // ========================================
 
     const result =
         await File.deleteMany({
@@ -1443,11 +1736,12 @@ const getFileStatistics = async({
 
     const storageUsed =
 
-        storageResult.length > 0 ?
+        storageResult.length > 0
 
-        storageResult[0].totalSize :
+        ?
+        storageResult[0].totalSize
 
-        0;
+        : 0;
 
 
     return {

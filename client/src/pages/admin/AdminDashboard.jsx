@@ -1082,7 +1082,7 @@ const AdminDashboard = () => {
                                     text-slate-500
                                 "
                             >
-                                Active file metadata size
+                                Active cloud file storage
                             </p>
 
                         </div>
@@ -1143,8 +1143,9 @@ const AdminDashboard = () => {
                                 text-slate-500
                             "
                         >
-                            Calculated from file metadata
-                            stored in MongoDB.
+                            Based on the active file sizes
+                            recorded with the cloud-backed
+                            gallery metadata.
                         </p>
 
                     </div>

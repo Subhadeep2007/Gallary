@@ -580,41 +580,43 @@ const Camera = () => {
         }
 
 
-       if (facingMode === "user") {
+        if (
+            facingMode === "user"
+        ) {
 
-    context.save();
+            context.save();
 
-    context.translate(
-        canvas.width,
-        0
-    );
+            context.translate(
+                canvas.width,
+                0
+            );
 
-    context.scale(
-        -1,
-        1
-    );
+            context.scale(
+                -1,
+                1
+            );
 
-    context.drawImage(
-        video,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    );
+            context.drawImage(
+                video,
+                0,
+                0,
+                canvas.width,
+                canvas.height
+            );
 
-    context.restore();
+            context.restore();
 
-} else {
+        } else {
 
-    context.drawImage(
-        video,
-        0,
-        0,
-        canvas.width,
-        canvas.height
-    );
+            context.drawImage(
+                video,
+                0,
+                0,
+                canvas.width,
+                canvas.height
+            );
 
-}
+        }
 
 
         canvas.toBlob(
@@ -1031,7 +1033,19 @@ const Camera = () => {
                             false,
 
                         isEdited:
-                            false
+                            false,
+
+                        // ========================================
+                        // CLOUDINARY FILE
+                        // ========================================
+                        // Existing metadata remains unchanged.
+                        // The captured File is additionally
+                        // passed to the frontend file service.
+                        // ========================================
+
+                        file:
+                            file
+
                     });
 
 
@@ -1050,6 +1064,26 @@ const Camera = () => {
                         {
                             mongoFileId:
                                 mongoFile._id,
+
+                            // ========================================
+                            // CLOUDINARY METADATA
+                            // ========================================
+
+                            fileUrl:
+                                mongoFile.fileUrl ||
+                                null,
+
+                            cloudinaryPublicId:
+                                mongoFile.cloudinaryPublicId ||
+                                null,
+
+                            cloudinaryResourceType:
+                                mongoFile.cloudinaryResourceType ||
+                                null,
+
+                            cloudinaryFormat:
+                                mongoFile.cloudinaryFormat ||
+                                null,
 
                             syncStatus:
                                 "synced",
@@ -1334,10 +1368,10 @@ const Camera = () => {
                         muted
                         playsInline
                         className={
-    facingMode === "user"
-        ? "h-full w-full object-cover -scale-x-100"
-        : "h-full w-full object-cover"
-}
+                            facingMode === "user"
+                                ? "h-full w-full object-cover -scale-x-100"
+                                : "h-full w-full object-cover"
+                        }
                     />
 
 
@@ -1741,7 +1775,7 @@ const Camera = () => {
                     </h3>
 
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Captured media is saved to IndexedDB first and then its metadata is synced with MongoDB.
+                        Captured media is saved to IndexedDB first, uploaded to shared cloud storage, and its metadata is synced with MongoDB.
                     </p>
 
                 </div>

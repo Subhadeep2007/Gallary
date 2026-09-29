@@ -44,7 +44,8 @@ import {
 } from "../../services/storage/db.js";
 
 import {
-    createFile
+    createFile,
+    getFiles
 } from "../../services/file/file.service.js";
 
 
@@ -115,6 +116,189 @@ const getPreviewUrl = (
 
         return null;
     }
+};
+
+
+const normalizeFilesResponse = (
+    response
+) => {
+
+    if (
+        Array.isArray(
+            response
+        )
+    ) {
+
+        return response;
+    }
+
+
+    if (
+        response &&
+        Array.isArray(
+            response.files
+        )
+    ) {
+
+        return response.files;
+    }
+
+
+    if (
+        response &&
+        Array.isArray(
+            response.data
+        )
+    ) {
+
+        return response.data;
+    }
+
+
+    if (
+        response &&
+        response.data &&
+        Array.isArray(
+            response.data.files
+        )
+    ) {
+
+        return response.data.files;
+    }
+
+
+    return [];
+};
+
+
+const getEditableFileData = async(
+    file
+) => {
+
+    if (
+        file &&
+        file.fileData instanceof Blob
+    ) {
+
+        return file.fileData;
+    }
+
+
+    if (
+        file &&
+        file.fileUrl
+    ) {
+
+        const response =
+            await fetch(
+                file.fileUrl
+            );
+
+
+        if (
+            !response.ok
+        ) {
+
+            throw new Error(
+                "Unable to download cloud video."
+            );
+        }
+
+
+        const blob =
+            await response.blob();
+
+
+        return new File(
+            [
+                blob
+            ],
+            file.fileName ||
+                "video",
+            {
+                type:
+                    file.mimeType ||
+                    blob.type ||
+                    "video/mp4"
+            }
+        );
+    }
+
+
+    return null;
+};
+
+
+const getVideoInputExtension = (
+    file
+) => {
+
+    const name =
+        String(
+            file &&
+            (
+                file.name ||
+                file.fileName ||
+                ""
+            )
+        ).toLowerCase();
+
+
+    const mimeType =
+        String(
+            file &&
+            file.type ||
+            ""
+        ).toLowerCase();
+
+
+    if (
+        mimeType.includes("quicktime") ||
+        name.endsWith(".mov")
+    ) {
+
+        return "mov";
+    }
+
+
+    if (
+        mimeType.includes("matroska") ||
+        mimeType.includes("x-matroska") ||
+        name.endsWith(".mkv")
+    ) {
+
+        return "mkv";
+    }
+
+
+    if (
+        mimeType.includes("webm") ||
+        name.endsWith(".webm")
+    ) {
+
+        return "webm";
+    }
+
+
+    if (
+        mimeType.includes("3gpp") ||
+        name.endsWith(".3gp")
+    ) {
+
+        return "3gp";
+    }
+
+
+    if (
+        mimeType.includes("avi") ||
+        name.endsWith(".avi")
+    ) {
+
+        return "avi";
+    }
+
+
+    return "mp4";
 };
 
 
@@ -414,39 +598,200 @@ const VideoEditor = () => {
             setLoadingFiles(true);
 
 
-            const files =
+            const localFiles =
                 await getAllFiles(
                     userId
                 );
 
 
-            const videos =
-                Array.isArray(files)
-                    ? files.filter(
+            const localVideos =
+                Array.isArray(
+                    localFiles
+                )
+                    ? localFiles.filter(
                         (file) => {
+
                             return (
                                 file.fileType ===
                                     "video" &&
-                                file.fileData
+                                file.isDeleted !== true
                             );
+
                         }
                     )
                     : [];
 
 
+            let cloudVideos = [];
+
+
+            try {
+
+                const cloudResponse =
+                    await getFiles({
+                        fileType:
+                            "video"
+                    });
+
+
+                const cloudFiles =
+                    normalizeFilesResponse(
+                        cloudResponse
+                    );
+
+
+                cloudVideos =
+                    Array.isArray(
+                        cloudFiles
+                    )
+                        ? cloudFiles.filter(
+                            (file) => {
+
+                                return (
+                                    (
+                                        file.fileType ===
+                                            "video" ||
+                                        file.type ===
+                                            "video"
+                                    ) &&
+                                    file.isDeleted !== true
+                                );
+
+                            }
+                        )
+                        : [];
+
+            } catch (cloudError) {
+
+                console.error(
+                    "Load cloud videos error:",
+                    cloudError
+                );
+            }
+
+
+            const mergedVideos =
+                [...localVideos];
+
+
+            cloudVideos.forEach(
+                (cloudFile) => {
+
+                    const cloudId =
+                        cloudFile._id ||
+                        cloudFile.id ||
+                        cloudFile.mongoFileId ||
+                        null;
+
+
+                    const existingIndex =
+                        mergedVideos.findIndex(
+                            (localFile) => {
+
+                                return (
+                                    (
+                                        cloudId &&
+                                        (
+                                            localFile.mongoFileId ===
+                                                cloudId ||
+                                            localFile._id ===
+                                                cloudId
+                                        )
+                                    ) ||
+                                    (
+                                        cloudFile.localFileId &&
+                                        localFile.localFileId ===
+                                            cloudFile.localFileId
+                                    )
+                                );
+
+                            }
+                        );
+
+
+                    const normalizedCloudFile = {
+
+                        ...cloudFile,
+
+                        mongoFileId:
+                            cloudFile.mongoFileId ||
+                            cloudFile._id ||
+                            cloudFile.id ||
+                            null,
+
+                        fileName:
+                            cloudFile.fileName ||
+                            cloudFile.name,
+
+                        fileType:
+                            cloudFile.fileType ||
+                            cloudFile.type ||
+                            "video",
+
+                        mimeType:
+                            cloudFile.mimeType ||
+                            "video/mp4",
+
+                        fileUrl:
+                            cloudFile.fileUrl ||
+                            null,
+
+                        fileData:
+                            cloudFile.fileData ||
+                            null
+
+                    };
+
+
+                    if (
+                        existingIndex >= 0
+                    ) {
+
+                        const localFile =
+                            mergedVideos[
+                                existingIndex
+                            ];
+
+
+                        mergedVideos[
+                            existingIndex
+                        ] = {
+
+                            ...localFile,
+
+                            ...normalizedCloudFile,
+
+                            fileData:
+                                localFile.fileData ||
+                                normalizedCloudFile.fileData ||
+                                null
+
+                        };
+
+                    } else {
+
+                        mergedVideos.push(
+                            normalizedCloudFile
+                        );
+                    }
+
+                }
+            );
+
+
             setVideoFiles(
-                videos
+                mergedVideos
             );
 
 
             if (
-                videos.length > 0
+                mergedVideos.length > 0
             ) {
 
                 setSelectedIndex(0);
 
                 setSelectedFile(
-                    videos[0]
+                    mergedVideos[0]
                 );
 
             } else {
@@ -574,50 +919,172 @@ const VideoEditor = () => {
         if (
             !selectedFile
         ) {
+
             return;
         }
 
 
-        const url =
-            getPreviewUrl(
-                selectedFile.fileData
-            );
+        let cancelled = false;
+
+        let previewUrl =
+            null;
 
 
-        if (!url) {
-            return;
-        }
+        const loadSelectedVideo =
+            async() => {
+
+                try {
+
+                    const fileData =
+                        await getEditableFileData(
+                            selectedFile
+                        );
 
 
-        if (
-            previewUrlRef.current
-        ) {
+                    if (
+                        !fileData
+                    ) {
 
-            URL.revokeObjectURL(
-                previewUrlRef.current
-            );
-        }
+                        toast.error(
+                            "Selected video is not available."
+                        );
 
-
-        previewUrlRef.current =
-            url;
+                        return;
+                    }
 
 
-        if (
-            videoRef.current
-        ) {
-
-            videoRef.current.src =
-                url;
-
-            videoRef.current.load();
-        }
+                    previewUrl =
+                        getPreviewUrl(
+                            fileData
+                        );
 
 
-        resetVideoControls();
+                    if (
+                        !previewUrl
+                    ) {
+
+                        toast.error(
+                            "Unable to create video preview."
+                        );
+
+                        return;
+                    }
+
+
+                    if (
+                        cancelled
+                    ) {
+
+                        return;
+                    }
+
+
+                    if (
+                        previewUrlRef.current
+                    ) {
+
+                        URL.revokeObjectURL(
+                            previewUrlRef.current
+                        );
+                    }
+
+
+                    previewUrlRef.current =
+                        previewUrl;
+
+
+                    if (
+                        videoRef.current
+                    ) {
+
+                        videoRef.current.src =
+                            previewUrl;
+
+                        videoRef.current.load();
+                    }
+
+
+                    if (
+                        !selectedFile.fileData
+                    ) {
+
+                        const updatedFile = {
+
+                            ...selectedFile,
+
+                            fileData
+
+                        };
+
+
+                        setSelectedFile(
+                            updatedFile
+                        );
+
+
+                        setVideoFiles(
+                            (currentFiles) => {
+
+                                return currentFiles.map(
+                                    (file) => {
+
+                                        const sameFile =
+                                            (
+                                                selectedFile.localFileId &&
+                                                file.localFileId ===
+                                                    selectedFile.localFileId
+                                            ) ||
+                                            (
+                                                selectedFile.mongoFileId &&
+                                                file.mongoFileId ===
+                                                    selectedFile.mongoFileId
+                                            );
+
+
+                                        return sameFile
+                                            ? {
+                                                ...file,
+                                                fileData
+                                            }
+                                            : file;
+                                    }
+                                );
+                            }
+                        );
+                    }
+
+
+                    resetVideoControls();
+
+                } catch (error) {
+
+                    console.error(
+                        "Load selected video error:",
+                        error
+                    );
+
+                    if (
+                        !cancelled
+                    ) {
+
+                        toast.error(
+                            error.message ||
+                            "Unable to open selected video."
+                        );
+                    }
+
+                }
+
+            };
+
+
+        loadSelectedVideo();
 
 
         return () => {
+
+            cancelled = true;
+
 
             if (
                 videoRef.current
@@ -1257,12 +1724,29 @@ const VideoEditor = () => {
     ) => {
 
         if (
-            !selectedFile ||
-            !selectedFile.fileData
+            !selectedFile
         ) {
 
             toast.error(
                 "Select a video first."
+            );
+
+            return null;
+        }
+
+
+        const sourceFile =
+            await getEditableFileData(
+                selectedFile
+            );
+
+
+        if (
+            !sourceFile
+        ) {
+
+            toast.error(
+                "Selected video is not available."
             );
 
             return null;
@@ -1274,6 +1758,7 @@ const VideoEditor = () => {
 
 
         if (!loaded) {
+
             return null;
         }
 
@@ -1283,10 +1768,9 @@ const VideoEditor = () => {
 
 
         const extension =
-            selectedFile.mimeType ===
-                "video/mp4"
-                ? "mp4"
-                : "webm";
+            getVideoInputExtension(
+                sourceFile
+            );
 
 
         const inputName =
@@ -1311,12 +1795,68 @@ const VideoEditor = () => {
             await ffmpeg.writeFile(
                 inputName,
                 await fetchFile(
-                    selectedFile.fileData
+                    sourceFile
                 )
             );
 
 
             let command = [];
+
+
+            // =================================================
+            // COMMON VIDEO FILTER
+            // =================================================
+
+            const videoFilter =
+                getVideoFilter(
+                    false
+                );
+
+
+            const safeVideoFilter =
+                videoFilter ||
+                "setpts=PTS-STARTPTS";
+
+
+            const videoAudioFilters = [];
+
+
+            if (
+                speed !== 1
+            ) {
+
+                const safeSpeed =
+                    speed === 2
+                        ? "2.0"
+                        : speed === 1.5
+                            ? "1.5"
+                            : speed === 0.75
+                                ? "0.75"
+                                : speed === 0.5
+                                    ? "0.5"
+                                    : String(speed);
+
+
+                videoAudioFilters.push(
+                    `atempo=${safeSpeed}`
+                );
+            }
+
+
+            if (
+                volume !== 100
+            ) {
+
+                videoAudioFilters.push(
+                    `volume=${volume / 100}`
+                );
+            }
+
+
+            const audioFilter =
+                videoAudioFilters.join(
+                    ","
+                );
 
 
             // =================================================
@@ -1327,32 +1867,64 @@ const VideoEditor = () => {
                 action === "trim"
             ) {
 
-                const videoFilter =
-                    getVideoFilter(
-                        true
+                const trimDuration =
+                    Math.max(
+                        0.1,
+                        Number(
+                            trimEnd -
+                            trimStart
+                        )
                     );
 
 
                 command = [
                     "-i",
                     inputName,
+
                     "-ss",
                     String(
                         trimStart
                     ),
-                    "-to",
+
+                    "-t",
                     String(
-                        trimEnd
+                        trimDuration
                     ),
+
                     "-vf",
-                    videoFilter ||
-                        "setpts=PTS-STARTPTS",
-                    "-af",
-                    `atempo=${speed === 2 ? "2.0" : speed === 1.5 ? "1.5" : speed === 0.5 ? "0.5" : speed === 0.75 ? "0.75" : speed},volume=${volume / 100}`,
+                    safeVideoFilter,
+
+                    "-map",
+                    "0:v:0",
+
+                    "-map",
+                    "0:a:0?",
+
+                    ...(audioFilter
+                        ? [
+                            "-af",
+                            audioFilter
+                        ]
+                        : []),
+
+                    "-c:v",
+                    "libx264",
+
                     "-preset",
                     "ultrafast",
+
+                    "-pix_fmt",
+                    "yuv420p",
+
+                    "-c:a",
+                    "aac",
+
+                    "-b:a",
+                    "128k",
+
                     "-movflags",
-                    "faststart",
+                    "+faststart",
+
                     outputName
                 ];
             }
@@ -1367,60 +1939,212 @@ const VideoEditor = () => {
             ) {
 
                 const firstDuration =
-                    cutStart;
-
-
-                const secondStart =
-                    cutEnd;
-
-
-                const videoFilter =
-                    getVideoFilter(
-                        false
+                    Math.max(
+                        0,
+                        Number(
+                            cutStart
+                        )
                     );
 
 
-                const filterParts = [];
+                const secondStart =
+                    Math.max(
+                        0,
+                        Number(
+                            cutEnd
+                        )
+                    );
 
 
-                filterParts.push(
-                    `[0:v]trim=start=0:end=${firstDuration},setpts=PTS-STARTPTS${videoFilter ? "," + getCropFilter() : ""}${getRotateFilter() ? "," + getRotateFilter() : ""}${speed !== 1 ? ",setpts=" + (1 / speed) + "*PTS" : ""}[v1]`
-                );
+                const videoParts = [];
 
 
-                filterParts.push(
-                    `[0:v]trim=start=${secondStart},setpts=PTS-STARTPTS${getCropFilter() ? "," + getCropFilter() : ""}${getRotateFilter() ? "," + getRotateFilter() : ""}${speed !== 1 ? ",setpts=" + (1 / speed) + "*PTS" : ""}[v2]`
-                );
+                const cropFilter =
+                    getCropFilter();
 
 
-                filterParts.push(
-                    `[0:a]atrim=start=0:end=${firstDuration},asetpts=PTS-STARTPTS,volume=${volume / 100}[a1]`
-                );
+                const rotateFilter =
+                    getRotateFilter();
 
 
-                filterParts.push(
-                    `[0:a]atrim=start=${secondStart},asetpts=PTS-STARTPTS,volume=${volume / 100}[a2]`
-                );
+                if (
+                    cropFilter
+                ) {
+
+                    videoParts.push(
+                        cropFilter
+                    );
+                }
 
 
-                filterParts.push(
-                    `[v1][a1][v2][a2]concat=n=2:v=1:a=1[v][a]`
-                );
+                if (
+                    rotateFilter
+                ) {
+
+                    videoParts.push(
+                        rotateFilter
+                    );
+                }
+
+
+                if (
+                    speed !== 1
+                ) {
+
+                    videoParts.push(
+                        `setpts=${1 / speed}*PTS`
+                    );
+                }
+
+
+                const postVideoFilter =
+                    videoParts.length > 0
+                        ? "," +
+                            videoParts.join(
+                                ","
+                            )
+                        : "";
+
+
+                const audioPostFilters = [];
+
+
+                if (
+                    speed !== 1
+                ) {
+
+                    const safeSpeed =
+                        speed === 2
+                            ? "2.0"
+                            : speed === 1.5
+                                ? "1.5"
+                                : speed === 0.75
+                                    ? "0.75"
+                                    : speed === 0.5
+                                        ? "0.5"
+                                        : String(speed);
+
+
+                    audioPostFilters.push(
+                        `atempo=${safeSpeed}`
+                    );
+                }
+
+
+                if (
+                    volume !== 100
+                ) {
+
+                    audioPostFilters.push(
+                        `volume=${volume / 100}`
+                    );
+                }
+
+
+                if (
+                    fadeIn >
+                    0
+                ) {
+
+                    audioPostFilters.push(
+                        `afade=t=in:st=0:d=${fadeIn}`
+                    );
+                }
+
+
+                if (
+                    fadeOut >
+                    0
+                ) {
+
+                    const keptDuration =
+                        Math.max(
+                            0.1,
+                            duration -
+                            (
+                                cutEnd -
+                                cutStart
+                            )
+                        );
+
+
+                    const safeFadeOut =
+                        Math.min(
+                            fadeOut,
+                            keptDuration
+                        );
+
+
+                    const fadeStart =
+                        Math.max(
+                            0,
+                            keptDuration -
+                            safeFadeOut
+                        );
+
+
+                    audioPostFilters.push(
+                        `afade=t=out:st=${fadeStart}:d=${safeFadeOut}`
+                    );
+                }
+
+
+                const audioFilterGraph =
+                    audioPostFilters.length > 0
+                        ? `,${audioPostFilters.join(",")}`
+                        : "";
+
+
+                const filterParts = [
+
+                    `[0:v]trim=start=0:end=${firstDuration},setpts=PTS-STARTPTS${postVideoFilter}[v1]`,
+
+                    `[0:v]trim=start=${secondStart},setpts=PTS-STARTPTS${postVideoFilter}[v2]`,
+
+                    `[v1][v2]concat=n=2:v=1:a=0[vout]`,
+
+                    `[0:a]atrim=start=0:end=${firstDuration},asetpts=PTS-STARTPTS[basea1]`,
+
+                    `[0:a]atrim=start=${secondStart},asetpts=PTS-STARTPTS[basea2]`,
+
+                    `[basea1][basea2]concat=n=2:v=0:a=1${audioFilterGraph}[aout]`
+                ];
 
 
                 command = [
+
                     "-i",
                     inputName,
+
                     "-filter_complex",
-                    filterParts.join(";"),
+                    filterParts.join(
+                        ";"
+                    ),
+
                     "-map",
-                    "[v]",
+                    "[vout]",
+
                     "-map",
-                    "[a]",
+                    "[aout]",
+
+                    "-c:v",
+                    "libx264",
+
                     "-preset",
                     "ultrafast",
+
+                    "-pix_fmt",
+                    "yuv420p",
+
+                    "-c:a",
+                    "aac",
+
+                    "-b:a",
+                    "128k",
+
                     "-movflags",
-                    "faststart",
+                    "+faststart",
+
                     outputName
                 ];
             }
@@ -1434,48 +2158,199 @@ const VideoEditor = () => {
                 action === "adjust"
             ) {
 
-                const videoFilter =
-                    getVideoFilter(
-                        false
-                    );
-
-
                 command = [
                     "-i",
-                    inputName
-                ];
+                    inputName,
 
+                    "-vf",
+                    safeVideoFilter,
 
-                if (
-                    videoFilter
-                ) {
+                    "-map",
+                    "0:v:0",
 
-                    command.push(
-                        "-vf",
-                        videoFilter
-                    );
-                }
+                    "-map",
+                    "0:a:0?",
 
+                    ...(audioFilter
+                        ? [
+                            "-af",
+                            audioFilter
+                        ]
+                        : []),
 
-                command.push(
-                    "-af",
-                    `volume=${volume / 100}`,
+                    "-c:v",
+                    "libx264",
+
                     "-preset",
                     "ultrafast",
+
+                    "-pix_fmt",
+                    "yuv420p",
+
+                    "-c:a",
+                    "aac",
+
+                    "-b:a",
+                    "128k",
+
                     "-movflags",
-                    "faststart",
+                    "+faststart",
+
                     outputName
+                ];
+            }
+
+
+            if (
+                command.length === 0
+            ) {
+
+                throw new Error(
+                    "Invalid video processing action."
                 );
             }
 
 
-            // =================================================
-            // RUN FFMPEG
-            // =================================================
+            try {
 
-            await ffmpeg.exec(
-                command
-            );
+                await ffmpeg.exec(
+                    command
+                );
+
+            } catch (audioCommandError) {
+
+                // -------------------------------------------------
+                // Some device videos contain no audio stream.
+                // Retry cut/trim/adjust without audio if the
+                // audio graph/map is the part that failed.
+                // -------------------------------------------------
+
+                console.error(
+                    "Video command with audio failed:",
+                    audioCommandError
+                );
+
+
+                if (
+                    action !== "cut"
+                ) {
+
+                    throw audioCommandError;
+                }
+
+
+                try {
+
+                    await ffmpeg.deleteFile(
+                        outputName
+                    );
+
+                } catch (deleteError) {
+                    // Output may not exist. Ignore.
+                }
+
+
+                const videoOnlyFilterParts = [];
+
+                const cropFilter =
+                    getCropFilter();
+
+                const rotateFilter =
+                    getRotateFilter();
+
+
+                if (
+                    cropFilter
+                ) {
+
+                    videoOnlyFilterParts.push(
+                        cropFilter
+                    );
+                }
+
+
+                if (
+                    rotateFilter
+                ) {
+
+                    videoOnlyFilterParts.push(
+                        rotateFilter
+                    );
+                }
+
+
+                if (
+                    speed !== 1
+                ) {
+
+                    videoOnlyFilterParts.push(
+                        `setpts=${1 / speed}*PTS`
+                    );
+                }
+
+
+                const videoOnlyPost =
+                    videoOnlyFilterParts.length > 0
+                        ? "," +
+                            videoOnlyFilterParts.join(
+                                ","
+                            )
+                        : "";
+
+
+                const videoOnlyGraph = [
+
+                    `[0:v]trim=start=0:end=${Math.max(
+                        0,
+                        Number(
+                            cutStart
+                        )
+                    )},setpts=PTS-STARTPTS${videoOnlyPost}[v1]`,
+
+                    `[0:v]trim=start=${Math.max(
+                        0,
+                        Number(
+                            cutEnd
+                        )
+                    )},setpts=PTS-STARTPTS${videoOnlyPost}[v2]`,
+
+                    `[v1][v2]concat=n=2:v=1:a=0[vout]`
+                ];
+
+
+                const videoOnlyCommand = [
+
+                    "-i",
+                    inputName,
+
+                    "-filter_complex",
+                    videoOnlyGraph.join(
+                        ";"
+                    ),
+
+                    "-map",
+                    "[vout]",
+
+                    "-c:v",
+                    "libx264",
+
+                    "-preset",
+                    "ultrafast",
+
+                    "-pix_fmt",
+                    "yuv420p",
+
+                    "-movflags",
+                    "+faststart",
+
+                    outputName
+                ];
+
+
+                await ffmpeg.exec(
+                    videoOnlyCommand
+                );
+            }
 
 
             const data =
@@ -1486,7 +2361,9 @@ const VideoEditor = () => {
 
             const outputFile =
                 new File(
-                    [data.buffer],
+                    [
+                        data
+                    ],
                     `${getBaseName(selectedFile.fileName)}_edited_${Date.now()}.mp4`,
                     {
                         type:
@@ -1516,10 +2393,12 @@ const VideoEditor = () => {
 
 
             setEditedFile({
+
                 file:
                     outputFile,
 
                 previewUrl
+
             });
 
 
@@ -1527,7 +2406,7 @@ const VideoEditor = () => {
                 action === "trim"
                     ? "Trimmed video generated."
                     : action === "cut"
-                        ? "Middle section removed."
+                        ? "Selected section removed."
                         : "Edited video generated."
             );
 
@@ -1543,7 +2422,9 @@ const VideoEditor = () => {
 
 
             toast.error(
-                "Video processing failed. Try a shorter or smaller video."
+                error && error.message
+                    ? error.message
+                    : "Video processing failed."
             );
 
 
@@ -1552,10 +2433,13 @@ const VideoEditor = () => {
         } finally {
 
             try {
+
                 await ffmpeg.deleteFile(
                     inputName
                 );
+
             } catch (deleteError) {
+
                 console.error(
                     "Delete input error:",
                     deleteError
@@ -1564,10 +2448,13 @@ const VideoEditor = () => {
 
 
             try {
+
                 await ffmpeg.deleteFile(
                     outputName
                 );
+
             } catch (deleteError) {
+
                 console.error(
                     "Delete output error:",
                     deleteError
@@ -1790,13 +2677,14 @@ const VideoEditor = () => {
                             false,
 
                         isEdited:
-                            true
+                            true,
+
+                        file
                     });
 
 
                 const mongoFile =
-                    response &&
-                    response.data;
+                    response;
 
 
                 if (
@@ -1809,6 +2697,22 @@ const VideoEditor = () => {
                         {
                             mongoFileId:
                                 mongoFile._id,
+
+                            fileUrl:
+                                mongoFile.fileUrl ||
+                                null,
+
+                            cloudinaryPublicId:
+                                mongoFile.cloudinaryPublicId ||
+                                null,
+
+                            cloudinaryResourceType:
+                                mongoFile.cloudinaryResourceType ||
+                                null,
+
+                            cloudinaryFormat:
+                                mongoFile.cloudinaryFormat ||
+                                null,
 
                             syncStatus:
                                 "synced",

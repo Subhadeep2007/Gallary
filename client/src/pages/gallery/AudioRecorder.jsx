@@ -263,6 +263,7 @@ const AudioRecorder = () => {
                 null;
         }
 
+
         setMicrophoneReady(
             false
         );
@@ -335,6 +336,7 @@ const AudioRecorder = () => {
                 error.name ===
                     "NotAllowedError"
             ) {
+
                 message =
                     "Microphone permission was denied. Please allow microphone access in your browser.";
             }
@@ -345,6 +347,7 @@ const AudioRecorder = () => {
                 error.name ===
                     "NotFoundError"
             ) {
+
                 message =
                     "No microphone was found on this device.";
             }
@@ -355,6 +358,7 @@ const AudioRecorder = () => {
                 error.name ===
                     "NotReadableError"
             ) {
+
                 message =
                     "Microphone is already being used by another application.";
             }
@@ -533,13 +537,20 @@ const AudioRecorder = () => {
                     );
 
 
+                const cleanMimeType =
+                    String(
+                        mimeType || "audio/webm"
+                    )
+                        .toLowerCase()
+                        .split(";")[0];
+
                 const file =
                     new File(
                         [blob],
                         `audio_${Date.now()}.${extension}`,
                         {
                             type:
-                                mimeType
+                                cleanMimeType
                         }
                     );
 
@@ -568,9 +579,11 @@ const AudioRecorder = () => {
                     false
                 );
 
+
                 setPaused(
                     false
                 );
+
 
                 setRecordingTime(
                     0
@@ -601,9 +614,11 @@ const AudioRecorder = () => {
                         false
                     );
 
+
                     setPaused(
                         false
                     );
+
 
                     setRecordingTime(
                         0
@@ -622,9 +637,11 @@ const AudioRecorder = () => {
                 true
             );
 
+
             setPaused(
                 false
             );
+
 
             setRecordingTime(
                 0
@@ -660,6 +677,7 @@ const AudioRecorder = () => {
             recorder.state !==
                 "recording"
         ) {
+
             return;
         }
 
@@ -667,6 +685,7 @@ const AudioRecorder = () => {
         try {
 
             recorder.pause();
+
 
             setPaused(
                 true
@@ -678,6 +697,7 @@ const AudioRecorder = () => {
                 "Pause error:",
                 error
             );
+
 
             toast.error(
                 "Unable to pause recording."
@@ -701,6 +721,7 @@ const AudioRecorder = () => {
             recorder.state !==
                 "paused"
         ) {
+
             return;
         }
 
@@ -708,6 +729,7 @@ const AudioRecorder = () => {
         try {
 
             recorder.resume();
+
 
             setPaused(
                 false
@@ -719,6 +741,7 @@ const AudioRecorder = () => {
                 "Resume error:",
                 error
             );
+
 
             toast.error(
                 "Unable to resume recording."
@@ -761,10 +784,10 @@ const AudioRecorder = () => {
                 false
             );
 
+
             setPaused(
                 false
             );
-
 
         } catch (error) {
 
@@ -791,6 +814,7 @@ const AudioRecorder = () => {
             !recording ||
             paused
         ) {
+
             return;
         }
 
@@ -940,13 +964,28 @@ const AudioRecorder = () => {
                             false,
 
                         isEdited:
-                            false
+                            false,
+
+                        // ========================================
+                        // CLOUDINARY FILE
+                        // ========================================
+                        // Existing metadata remains unchanged.
+                        // The actual recorded File is additionally
+                        // sent to the frontend file service.
+                        // ========================================
+
+                        file:
+                            file
                     });
 
 
+                // createFile() normally returns response.data.
+                // Keep a fallback for direct data-object returns.
                 const mongoFile =
                     response &&
-                    response.data;
+                    response.data
+                        ? response.data
+                        : response;
 
 
                 if (
@@ -959,6 +998,26 @@ const AudioRecorder = () => {
                         {
                             mongoFileId:
                                 mongoFile._id,
+
+                            // ========================================
+                            // CLOUDINARY METADATA
+                            // ========================================
+
+                            fileUrl:
+                                mongoFile.fileUrl ||
+                                null,
+
+                            cloudinaryPublicId:
+                                mongoFile.cloudinaryPublicId ||
+                                null,
+
+                            cloudinaryResourceType:
+                                mongoFile.cloudinaryResourceType ||
+                                null,
+
+                            cloudinaryFormat:
+                                mongoFile.cloudinaryFormat ||
+                                null,
 
                             syncStatus:
                                 "synced",
@@ -1063,6 +1122,7 @@ const AudioRecorder = () => {
             URL.revokeObjectURL(
                 previewUrlRef.current
             );
+
 
             previewUrlRef.current =
                 null;
@@ -1258,6 +1318,7 @@ const AudioRecorder = () => {
                     <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
 
                         {!recording && (
+
                             <button
                                 type="button"
                                 onClick={handleStartRecording}
@@ -1268,12 +1329,15 @@ const AudioRecorder = () => {
                                 className="inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-sm font-bold text-slate-950 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 <Mic size={19} />
+
                                 Start Recording
+
                             </button>
                         )}
 
 
                         {recording && (
+
                             <>
 
                                 <button
@@ -1287,13 +1351,17 @@ const AudioRecorder = () => {
                                 >
 
                                     {paused ? (
+
                                         <Play
                                             size={18}
                                         />
+
                                     ) : (
+
                                         <Pause
                                             size={18}
                                         />
+
                                     )}
 
                                     {paused
@@ -1333,6 +1401,7 @@ const AudioRecorder = () => {
                 ================================================= */}
 
                 {permissionError && (
+
                     <div className="border-t border-white/10 bg-red-500/5 px-5 py-5">
 
                         <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
@@ -1393,6 +1462,7 @@ const AudioRecorder = () => {
             ===================================================== */}
 
             {recordedAudio && (
+
                 <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-5 shadow-xl">
 
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1536,7 +1606,7 @@ const AudioRecorder = () => {
                     </h3>
 
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Audio is stored in IndexedDB while MongoDB keeps its metadata.
+                        Audio is stored in IndexedDB, uploaded to shared cloud storage, and its metadata is kept in MongoDB.
                     </p>
 
                 </div>

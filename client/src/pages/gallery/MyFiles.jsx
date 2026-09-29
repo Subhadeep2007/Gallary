@@ -29,6 +29,8 @@ import {
 
 import toast from "react-hot-toast";
 
+import { shareStoredFile } from "../../services/file/shareFile.js";
+
 import useAuth from "../../hooks/useAuth.js";
 
 import {
@@ -1784,57 +1786,9 @@ const MyFiles = () => {
         file
     ) => {
 
-        if (
-            !file ||
-            !file.fileData
-        ) {
-
-            toast.error(
-                "This file is not available locally."
-            );
-
-            return;
-        }
-
-
         try {
-
-            const shareFile =
-                new File(
-                    [
-                        file.fileData
-                    ],
-                    file.fileName,
-                    {
-                        type:
-                            file.mimeType
-                    }
-                );
-
-
-            if (
-                navigator.share
-            ) {
-
-                await navigator.share({
-
-                    title:
-                        file.fileName,
-
-                    files:
-                        [
-                            shareFile
-                        ]
-                });
-
-                return;
-            }
-
-
-            toast.error(
-                "File sharing is not supported by this browser."
-            );
-
+            const result = await shareStoredFile(file, file?.fileName || "Gallery file");
+            if (result === "copied") toast.success("Share link copied.");
         } catch (error) {
 
             if (
@@ -1851,9 +1805,7 @@ const MyFiles = () => {
                 error
             );
 
-            toast.error(
-                "Unable to share this file."
-            );
+            toast.error(error.message || "Unable to share this file.");
         }
     };
 

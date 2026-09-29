@@ -24,6 +24,8 @@ import {
 
 import toast from "react-hot-toast";
 
+import { shareStoredFile } from "../../services/file/shareFile.js";
+
 import useAuth from "../../hooks/useAuth.js";
 
 import {
@@ -1111,140 +1113,15 @@ const Trash = () => {
     const handleShare = async (
         file
     ) => {
-
-        if (
-            !file
-        ) {
-
-            toast.error(
-                "File not available."
-            );
-
-            return;
-        }
-
-
-        if (
-            !navigator.share
-        ) {
-
-            toast.error(
-                "File sharing is not supported by this browser."
-            );
-
-            return;
-        }
-
-
         try {
-
-            // ========================================
-            // LOCAL INDEXEDDB FILE
-            // ========================================
-
-            if (
-                file.fileData
-            ) {
-
-                const shareBlob =
-                    createBlobFromData(
-                        file.fileData,
-                        file.mimeType
-                    );
-
-
-                if (!shareBlob) {
-
-                    toast.error(
-                        "Unable to read this file."
-                    );
-
-                    return;
-                }
-
-
-                const shareFile =
-                    new File(
-                        [
-                            shareBlob
-                        ],
-                        file.fileName ||
-                        "file",
-                        {
-                            type:
-                                file.mimeType ||
-                                shareBlob.type ||
-                                "application/octet-stream"
-                        }
-                    );
-
-
-                await navigator.share({
-
-                    title:
-                        file.fileName ||
-                        "Deleted file",
-
-                    files: [
-                        shareFile
-                    ]
-
-                });
-
-                return;
-            }
-
-
-            // ========================================
-            // CLOUDINARY FILE
-            // ========================================
-
-            if (
-                file.fileUrl
-            ) {
-
-                await navigator.share({
-
-                    title:
-                        file.fileName ||
-                        "Deleted file",
-
-                    url:
-                        file.fileUrl
-
-                });
-
-                return;
-            }
-
-
-            toast.error(
-                "This file is not available."
-            );
-
+            const result = await shareStoredFile(file, file?.fileName || 'Shared file');
+            if (result === 'copied') toast.success('Share link copied.');
         } catch (error) {
-
-            if (
-                error &&
-                error.name ===
-                    "AbortError"
-            ) {
-
-                return;
-            }
-
-
-            console.error(
-                "Share trash file error:",
-                error
-            );
-
-            toast.error(
-                "Unable to share file."
-            );
+            if (error?.name === 'AbortError') return;
+            console.error('Share error:', error);
+            toast.error(error.message || 'Unable to share file.');
         }
     };
-
 
     // =====================================================
     // RESTORE

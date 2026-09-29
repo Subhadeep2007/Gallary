@@ -1911,17 +1911,25 @@ const recoverMissingCloudinaryFiles = async(userId) => {
             const contextLocalFileId = typeof context.local_file_id === "string"
                 ? context.local_file_id
                 : null;
+            const fileType = contextType || inferCloudFileType(asset);
+            const localFileId = contextLocalFileId || `cloud-${createHash("sha256").update(`${asset.resource_type}:${asset.public_id}`).digest("hex")}`;
 
             const existing = await File.findOne({
                 user: userId,
                 $or: [
                     { cloudinaryPublicId: asset.public_id },
-                    ...(contextLocalFileId ? [{ localFileId: contextLocalFileId }] : []),
+                    { localFileId },
                     ...(asset.secure_url ? [{ fileUrl: asset.secure_url }] : [])
                 ]
             });
 
             if (existing) {
+                let changed = false;
+                if (existing.fileType !== fileType) {
+                    existing.fileType = fileType;
+                    existing.mimeType = inferCloudMimeType(asset, fileType);
+                    changed = true;
+                }
                 if (!existing.cloudinaryPublicId || !existing.fileUrl) {
                     existing.cloudinaryPublicId = asset.public_id;
                     existing.cloudinaryResourceType = asset.resource_type;
@@ -1932,14 +1940,15 @@ const recoverMissingCloudinaryFiles = async(userId) => {
                         type: "upload",
                         format: asset.format || undefined
                     });
+                    changed = true;
+                }
+                if (changed) {
                     await existing.save();
                 }
                 continue;
             }
 
-            const fileType = contextType || inferCloudFileType(asset);
             const fileName = asset.display_name || asset.original_filename || asset.public_id.split("/").pop();
-            const localFileId = contextLocalFileId || `cloud-${createHash("sha256").update(`${asset.resource_type}:${asset.public_id}`).digest("hex")}`;
 
             await File.updateOne(
                 { user: userId, localFileId },

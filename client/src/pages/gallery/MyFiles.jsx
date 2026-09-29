@@ -2261,7 +2261,10 @@ const MyFiles = () => {
                                 true,
 
                             isEdited:
-                                false
+                                false,
+
+                            file:
+                                copiedFileData
 
                         });
 

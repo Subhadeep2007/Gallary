@@ -22,14 +22,19 @@ const buildFileFormData = (
         fileData.fileData;
 
 
-    if (actualFile) {
+    if (!actualFile) {
 
-        formData.append(
-            "file",
-            actualFile
+        throw new Error(
+            "Media file data is required for upload."
         );
 
     }
+
+
+    formData.append(
+        "file",
+        actualFile
+    );
 
 
     // ========================================

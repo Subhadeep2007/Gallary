@@ -5,9 +5,20 @@ import axios from "axios";
 // API BASE URL
 // ========================================
 
-const API_URL =
-    import.meta.env.VITE_API_URL ||
-    "/api";
+const configuredApiUrl = import.meta.env.VITE_API_URL;
+const runningOnLocalhost =
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+const pointsToLocalhost = Boolean(
+    configuredApiUrl &&
+    /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(configuredApiUrl)
+);
+
+// A localhost API URL baked into a production build points each visitor back
+// at their own device. Use same-origin /api in that case.
+const API_URL = pointsToLocalhost && !runningOnLocalhost
+    ? "/api"
+    : configuredApiUrl || "/api";
 
 
 // ========================================
@@ -37,6 +48,18 @@ const api =
 api.interceptors.request.use(
 
     (config) => {
+
+        // Axios serializes FormData as JSON when the instance's default
+        // application/json header is present. Let the browser set the
+        // multipart boundary so Multer receives the binary file correctly.
+        if (
+            typeof FormData !== "undefined" &&
+            config.data instanceof FormData
+        ) {
+
+            config.headers.delete("Content-Type");
+
+        }
 
         const accessToken =
             localStorage.getItem(

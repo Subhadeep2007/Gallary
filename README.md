@@ -180,7 +180,7 @@ Joi validation
 
 Other Services
 
-Cloudinary for profile image storage
+Cloudinary for profile images and gallery media
 
 Email OTP / verification service
 
@@ -277,7 +277,7 @@ EMAIL_FROM=your_sender_address
 RESEND_API_KEY=your_resend_api_key
 ADMIN_SECRET_KEY=your_admin_registration_secret
 
-The client uses `/api` by default. Vite proxies that path to `http://localhost:8080` during development. In production, route `/api` to the backend on the same domain, or set `VITE_API_URL` to the full backend API URL when building the client.
+The client uses `/api` by default. Vite listens on the local network and proxies that path to `http://localhost:8080` during development. In production, route `/api` to the backend on the same domain, or set `VITE_API_URL` to the full backend API URL when building the client. Do not deploy a client build whose API URL points at `localhost`; on another device, localhost refers to that device itself.
 
 ▶️ Run the Project
 

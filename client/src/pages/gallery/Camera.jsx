@@ -162,10 +162,6 @@ const Camera = () => {
     const previewUrlRef =
         useRef(null);
 
-    const pendingVideoLocalIdRef =
-        useRef(null);
-
-
     const [
         mode,
         setMode
@@ -766,13 +762,16 @@ const Camera = () => {
                     );
 
 
+                const videoType =
+                    (blob.type || mimeType).split(";")[0] ||
+                    "video/webm";
+
                 const file =
                     new File(
                         [blob],
                         `video_${Date.now()}.webm`,
                         {
-                            type:
-                                mimeType
+                            type: videoType
                         }
                     );
 
@@ -958,19 +957,11 @@ const Camera = () => {
             setSaving(true);
 
 
-            const localFileId = fileType === "video"
-                ? pendingVideoLocalIdRef.current || createLocalFileId()
-                : createLocalFileId();
+            const localFileId =
+                createLocalFileId();
 
-            if (fileType === "video") {
-                pendingVideoLocalIdRef.current = localFileId;
-            }
 
-            const existingLocalFile = fileType === "video"
-                ? await getFileByLocalId(localFileId)
-                : null;
-
-            if (!existingLocalFile) await addFile({
+            await addFile({
 
                 localFileId,
 
@@ -1162,21 +1153,11 @@ const Camera = () => {
             }
 
 
-            if (fileType === "video" && !cloudSynced) {
-                toast.error("Video is saved on this device, but cloud upload failed. Keep this screen open and tap Save to Gallery to retry.");
-                return;
-            }
-
             if (cloudSynced) {
                 toast.success(fileType === "image" ? "Photo saved to Gallery." : "Video saved to Gallery.");
             } else {
                 toast("Saved on this browser only; cloud upload is pending. Keep site data until sync completes.");
             }
-
-            if (fileType === "video") {
-                pendingVideoLocalIdRef.current = null;
-            }
-
 
             if (
                 fileType === "image"

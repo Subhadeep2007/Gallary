@@ -165,6 +165,15 @@ const getCloudinaryResourceType = (
     }
 
 
+    if (
+        fileType === "audio"
+    ) {
+
+        return "video";
+
+    }
+
+
     return "raw";
 
 };
@@ -1829,13 +1838,16 @@ const inferCloudFileType = (asset) => {
     const extension = name.split(".").pop();
     const effectiveFormat = format || extension;
 
+    // Cloudinary can store PDFs as image assets or raw assets depending on
+    // the upload path, so identify their format before mapping resource types.
+    if (effectiveFormat === "pdf") return "pdf";
     if (asset.resource_type === "image") return "image";
     if (asset.resource_type === "video") {
         return ["mp3", "wav", "ogg", "m4a", "aac", "flac"].includes(effectiveFormat)
             ? "audio"
             : "video";
     }
-    return effectiveFormat === "pdf" ? "pdf" : "audio";
+    return "audio";
 };
 
 const inferCloudMimeType = (asset, fileType) => {
@@ -1859,39 +1871,55 @@ const inferCloudMimeType = (asset, fileType) => {
 const getCloudinaryFolderResources = async(userId) => {
     const folder = `digital-gallery/${userId}`;
     const assets = [];
-    let nextCursor;
+    const resourceTypes = ["image", "video", "raw"];
+    let dynamicFolderListingAvailable = true;
 
-    try {
+    for (const resourceType of resourceTypes) {
+        let nextCursor;
         do {
-            const page = await cloudinary.api.resources_by_asset_folder(
-                folder,
-                { max_results: 500, next_cursor: nextCursor, context: true }
-            );
+            try {
+                const page = await cloudinary.api.resources_by_asset_folder(
+                    folder,
+                    {
+                        resource_type: resourceType,
+                        max_results: 500,
+                        next_cursor: nextCursor,
+                        context: true
+                    }
+                );
+                assets.push(...(page.resources || []));
+                nextCursor = page.next_cursor;
+            } catch {
+                dynamicFolderListingAvailable = false;
+                break;
+            }
+        } while (nextCursor);
+
+        if (!dynamicFolderListingAvailable) break;
+    }
+
+    if (dynamicFolderListingAvailable) return assets;
+
+    // Fixed-folder accounts use public-ID prefixes. List each resource type
+    // so non-image uploads are included too.
+    assets.length = 0;
+    for (const resourceType of resourceTypes) {
+        let nextCursor;
+        do {
+            const page = await cloudinary.api.resources({
+                resource_type: resourceType,
+                type: "upload",
+                prefix: `${folder}/`,
+                max_results: 500,
+                next_cursor: nextCursor,
+                context: true
+            });
             assets.push(...(page.resources || []));
             nextCursor = page.next_cursor;
         } while (nextCursor);
-        return assets;
-    } catch {
-        // Fixed-folder Cloudinary accounts do not support the asset-folder
-        // listing endpoint. In that mode assets are listed by resource type
-        // and public ID prefix instead.
-        for (const resourceType of ["image", "video", "raw"]) {
-            nextCursor = undefined;
-            do {
-                const page = await cloudinary.api.resources({
-                    resource_type: resourceType,
-                    type: "upload",
-                    prefix: `${folder}/`,
-                    max_results: 500,
-                    next_cursor: nextCursor,
-                    context: true
-                });
-                assets.push(...(page.resources || []));
-                nextCursor = page.next_cursor;
-            } while (nextCursor);
-        }
-        return assets;
     }
+
+    return assets;
 };
 
 const recoverMissingCloudinaryFiles = async(userId) => {

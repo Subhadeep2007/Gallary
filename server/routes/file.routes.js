@@ -9,6 +9,8 @@ import {
 
     create,
 
+    signVideo,
+
     sync,
 
     getAll,
@@ -103,6 +105,19 @@ router.post(
     validate,
 
     create
+
+);
+
+
+// ========================================
+// DIRECT VIDEO UPLOAD SIGNATURE
+// ========================================
+
+router.post(
+
+    "/video-upload-signature",
+
+    signVideo
 
 );
 

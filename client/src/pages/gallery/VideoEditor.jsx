@@ -40,16 +40,14 @@ import useAuth from "../../hooks/useAuth.js";
 import {
     addFile,
     getAllFiles,
-    getFileByLocalId,
     updateFileByLocalId
 } from "../../services/storage/db.js";
 
 import {
-    createFile,
-    getFiles
+    getFiles,
+    getVideoUploadSignature,
+    syncFile
 } from "../../services/file/file.service.js";
-
-import { syncPendingFiles } from "../../services/file/syncPendingFiles.js";
 
 
 // =========================================================
@@ -171,6 +169,60 @@ const normalizeFilesResponse = (
 
 
     return [];
+};
+
+
+const uploadVideoToCloudinary = async(
+    file,
+    signedUpload
+) => {
+
+    const chunkSize = 6 * 1024 * 1024;
+    const uploadId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `video-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const endpoint =
+        `https://api.cloudinary.com/v1_1/${encodeURIComponent(signedUpload.cloudName)}/video/upload`;
+
+    let uploadResult = null;
+
+    for (let start = 0; start < file.size; start += chunkSize) {
+        const end = Math.min(start + chunkSize, file.size);
+        const formData = new FormData();
+
+        Object.entries(signedUpload.params || {}).forEach(([key, value]) => {
+            formData.append(key, String(value));
+        });
+        formData.append("api_key", signedUpload.apiKey);
+        formData.append("signature", signedUpload.signature);
+        formData.append("file", file.slice(start, end), file.name);
+
+        const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+                "X-Unique-Upload-Id": uploadId,
+                "Content-Range": `bytes ${start}-${end - 1}/${file.size}`
+            },
+            body: formData
+        });
+
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(
+                result?.error?.message ||
+                `Cloudinary upload failed (${response.status}).`
+            );
+        }
+
+        uploadResult = result;
+    }
+
+    if (!uploadResult?.public_id || !uploadResult?.secure_url) {
+        throw new Error("Cloudinary did not return the uploaded video URL.");
+    }
+
+    return uploadResult;
 };
 
 
@@ -2643,144 +2695,68 @@ const VideoEditor = () => {
 
 
             try {
+                const signatureResponse = await getVideoUploadSignature({
+                    localFileId,
+                    categoryId: selectedCategoryId,
+                    parentFileId: selectedFile.mongoFileId || null
+                });
+                const signedUpload =
+                    signatureResponse?.data || signatureResponse;
+                const cloudAsset = await uploadVideoToCloudinary(
+                    file,
+                    signedUpload
+                );
 
-                const response =
-                    await createFile({
-
-                        localFileId,
-
-                        fileName:
-                            file.name,
-
-                        fileType:
-                            "video",
-
-                        mimeType:
-                            file.type,
-
-                        size:
-                            file.size,
-
-                        categoryId:
-                            selectedCategoryId,
-
-                        parentFileId:
-                            selectedFile.mongoFileId ||
-                            null,
-
-                        isCopy:
-                            false,
-
-                        isEdited:
-                            true,
-
-                        file
-                    });
-
-
+                const metadataResponse = await syncFile({
+                    localFileId,
+                    fileName: file.name,
+                    fileType: "video",
+                    mimeType: file.type || "video/mp4",
+                    size: String(file.size),
+                    categoryId: selectedCategoryId,
+                    parentFileId: selectedFile.mongoFileId || null,
+                    isCopy: false,
+                    isEdited: true,
+                    isFavorite: false,
+                    isDeleted: false,
+                    deletedAt: null,
+                    cloudinaryPublicId: cloudAsset.public_id
+                });
                 const mongoFile =
-                    response?.data?.data ||
-                    response?.data ||
-                    response;
+                    metadataResponse?.data?.data ||
+                    metadataResponse?.data ||
+                    metadataResponse;
 
+                cloudSynced = Boolean(
+                    mongoFile?._id &&
+                    mongoFile.fileUrl &&
+                    mongoFile.cloudinaryPublicId
+                );
 
-                if (
-                    mongoFile &&
-                    mongoFile._id
-                ) {
-
-                    cloudSynced = Boolean(
-                        mongoFile._id &&
-                        mongoFile.fileUrl
-                    );
-
-                    if (localSaved) {
-                        await updateFileByLocalId(
-                            localFileId,
-                            {
-                                mongoFileId:
-                                    mongoFile._id,
-
-                                fileUrl:
-                                    mongoFile.fileUrl ||
-                                    null,
-
-                                cloudinaryPublicId:
-                                    mongoFile.cloudinaryPublicId ||
-                                    null,
-
-                                cloudinaryResourceType:
-                                    mongoFile.cloudinaryResourceType ||
-                                    null,
-
-                                cloudinaryFormat:
-                                    mongoFile.cloudinaryFormat ||
-                                    null,
-
-                                syncStatus:
-                                    cloudSynced
-                                        ? "synced"
-                                        : "pending",
-
-                                updatedAt:
-                                    new Date()
-                            }
-                        );
-                    }
-
-                } else {
-
-                    if (localSaved) {
-                        await updateFileByLocalId(
-                            localFileId,
-                            {
-                                syncStatus: "pending",
-                                updatedAt: new Date()
-                            }
-                        );
-                    }
+                if (localSaved && cloudSynced) {
+                    await updateFileByLocalId(localFileId, {
+                        mongoFileId: mongoFile._id,
+                        fileUrl: mongoFile.fileUrl,
+                        cloudinaryPublicId: mongoFile.cloudinaryPublicId,
+                        cloudinaryResourceType: mongoFile.cloudinaryResourceType || "video",
+                        cloudinaryFormat: mongoFile.cloudinaryFormat || null,
+                        syncStatus: "synced",
+                        updatedAt: new Date()
+                    });
                 }
-
             } catch (apiError) {
-
                 cloudUploadError =
                     apiError?.response?.data?.message ||
                     apiError?.message ||
                     "Cloudinary upload failed.";
 
-                console.error(
-                    "Edited video sync error:",
-                    apiError
-                );
-
+                console.error("Edited video cloud upload error:", apiError);
 
                 if (localSaved) {
-                    await updateFileByLocalId(
-                        localFileId,
-                        {
-                            syncStatus: "pending",
-                            updatedAt: new Date()
-                        }
-                    );
-                }
-            }
-
-
-            if (!cloudSynced && localSaved) {
-                // Retry the persisted edited file so a transient upload failure
-                // does not leave the only copy in this browser's IndexedDB.
-                try {
-                    await syncPendingFiles(userId);
-                    const savedFile = await getFileByLocalId(localFileId);
-                    cloudSynced = Boolean(
-                        savedFile?.mongoFileId &&
-                        savedFile?.fileUrl
-                    );
-                } catch (syncError) {
-                    console.error(
-                        "Immediate edited video sync retry failed:",
-                        syncError
-                    );
+                    await updateFileByLocalId(localFileId, {
+                        syncStatus: "pending",
+                        updatedAt: new Date()
+                    });
                 }
             }
 

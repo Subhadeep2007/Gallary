@@ -320,6 +320,79 @@ const uploadToCloudinary = async({
 
 
 // =========================================================
+// SIGN DIRECT VIDEO UPLOAD
+// =========================================================
+
+const signVideoUpload = async({
+    userId,
+    localFileId,
+    categoryId = null,
+    parentFileId = null
+}) => {
+
+    await checkUser(userId);
+
+    if (!localFileId || typeof localFileId !== "string") {
+        throw createError("Local file ID is required", 400);
+    }
+
+    await checkCategoryOwnership({ userId, categoryId });
+
+    if (parentFileId) {
+        if (!mongoose.Types.ObjectId.isValid(parentFileId)) {
+            throw createError("Invalid parent file ID", 400);
+        }
+
+        const parentFile = await File.findOne({
+            _id: parentFileId,
+            user: userId
+        });
+
+        if (!parentFile) {
+            throw createError("Parent file not found", 404);
+        }
+    }
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const folder = `digital-gallery/${userId}`;
+    const context = Object.entries({
+        local_file_id: localFileId,
+        file_type: "video",
+        is_edited: "true",
+        is_copy: "false",
+        category_id: categoryId,
+        parent_file_id: parentFileId
+    })
+        .filter(([, value]) => value !== null && value !== undefined)
+        .map(([key, value]) => `${key}=${value}`)
+        .join("|");
+
+    const paramsToSign = {
+        context,
+        folder,
+        public_id: localFileId,
+        timestamp
+    };
+    const config = cloudinary.config();
+
+    if (!config.api_key || !config.api_secret || !config.cloud_name) {
+        throw createError("Cloudinary is not configured on the server", 503);
+    }
+
+    return {
+        apiKey: config.api_key,
+        cloudName: config.cloud_name,
+        resourceType: "video",
+        params: paramsToSign,
+        signature: cloudinary.utils.api_sign_request(
+            paramsToSign,
+            config.api_secret
+        )
+    };
+};
+
+
+// =========================================================
 // DELETE FILE FROM CLOUDINARY
 // =========================================================
 
@@ -622,7 +695,8 @@ const syncFile = async({
     isEdited = false,
     isFavorite = false,
     isDeleted = false,
-    deletedAt = null
+    deletedAt = null,
+    cloudinaryPublicId = null
 }) => {
 
     await checkUser(
@@ -710,6 +784,54 @@ const syncFile = async({
     }
 
 
+    let cloudinaryAsset = null;
+
+    if (cloudinaryPublicId) {
+        if (fileType !== "video") {
+            throw createError("Direct Cloudinary upload is only supported for videos", 400);
+        }
+
+        try {
+            cloudinaryAsset = await cloudinary.api.resource(
+                cloudinaryPublicId,
+                { resource_type: "video", type: "upload", context: true }
+            );
+        } catch (error) {
+            throw createError(error.message || "Uploaded video was not found in Cloudinary", 400);
+        }
+
+        const assetContext = cloudinaryAsset.context?.custom || cloudinaryAsset.context || {};
+        if (
+            assetContext.local_file_id !== localFileId ||
+            assetContext.is_edited !== "true" ||
+            assetContext.file_type !== "video"
+        ) {
+            throw createError("Cloudinary video does not match this edited file", 403);
+        }
+    }
+
+    const updateFields = {
+        fileName: fileName.trim(),
+        fileType,
+        mimeType: mimeType.trim(),
+        size,
+        category: categoryId,
+        parentFile: parentFileId,
+        isCopy,
+        isEdited,
+        isFavorite,
+        isDeleted,
+        deletedAt,
+        syncStatus: "synced"
+    };
+
+    if (cloudinaryAsset) {
+        updateFields.fileUrl = cloudinaryAsset.secure_url;
+        updateFields.cloudinaryPublicId = cloudinaryAsset.public_id;
+        updateFields.cloudinaryResourceType = cloudinaryAsset.resource_type;
+        updateFields.cloudinaryFormat = cloudinaryAsset.format || null;
+    }
+
     const file =
         await File.findOneAndUpdate(
 
@@ -721,37 +843,7 @@ const syncFile = async({
 
             },
 
-            {
-
-                $set: {
-
-                    fileName: fileName.trim(),
-
-                    fileType,
-
-                    mimeType: mimeType.trim(),
-
-                    size,
-
-                    category: categoryId,
-
-                    parentFile: parentFileId,
-
-                    isCopy,
-
-                    isEdited,
-
-                    isFavorite,
-
-                    isDeleted,
-
-                    deletedAt,
-
-                    syncStatus: "synced"
-
-                }
-
-            },
+            { $set: updateFields },
 
             {
 
@@ -1807,6 +1899,8 @@ const getFileStatistics = async({
 export {
 
     createFile,
+
+    signVideoUpload,
 
     syncFile,
 

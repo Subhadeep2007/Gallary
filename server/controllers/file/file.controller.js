@@ -1,5 +1,6 @@
 import {
     createFile,
+    signVideoUpload,
     syncFile,
     getUserFiles,
     getFileById,
@@ -138,7 +139,9 @@ const sync = async(
 
                 isDeleted: req.body.isDeleted,
 
-                deletedAt: req.body.deletedAt
+                deletedAt: req.body.deletedAt,
+
+                cloudinaryPublicId: req.body.cloudinaryPublicId
 
             });
 
@@ -159,6 +162,35 @@ const sync = async(
 
         next(error);
 
+    }
+
+};
+
+
+// ========================================
+// SIGN DIRECT VIDEO UPLOAD
+// ========================================
+
+const signVideo = async(
+    req,
+    res,
+    next
+) => {
+
+    try {
+        const signature = await signVideoUpload({
+            userId: req.user.userId,
+            localFileId: req.body.localFileId,
+            categoryId: req.body.categoryId || null,
+            parentFileId: req.body.parentFileId || null
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: signature
+        });
+    } catch (error) {
+        next(error);
     }
 
 };
@@ -759,6 +791,8 @@ const statistics = async(
 export {
 
     create,
+
+    signVideo,
 
     sync,
 

@@ -179,6 +179,20 @@ export const createFile = async(
 };
 
 
+export const getVideoUploadSignature = async(
+    uploadData
+) => {
+
+    const response = await api.post(
+        "/files/video-upload-signature",
+        uploadData
+    );
+
+    return response.data;
+
+};
+
+
 // ========================================
 // CREATE FILE COPY
 // ========================================

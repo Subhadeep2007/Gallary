@@ -230,70 +230,82 @@ const uploadToCloudinary = async({
             reject
         ) => {
 
-            const uploadStream =
-                cloudinary.uploader.upload_stream(
+            const uploadOptions = {
+                folder,
 
-                    {
-                        folder,
+                resource_type: resourceType,
 
-                        resource_type: resourceType,
+                use_filename: true,
 
-                        use_filename: true,
+                unique_filename: true,
 
-                        unique_filename: true,
+                overwrite: false,
 
-                        overwrite: false,
+                filename_override: file.originalname,
 
-                        filename_override: file.originalname,
+                context: Object.fromEntries(
+                    Object.entries({
+                        local_file_id: localFileId,
+                        file_type: fileType,
+                        is_edited: String(isEdited === true),
+                        is_copy: String(isCopy === true),
+                        category_id: categoryId,
+                        parent_file_id: parentFileId
+                    }).filter(([, value]) => value !== null && value !== undefined)
+                )
+            };
 
-                        context: Object.fromEntries(
-                            Object.entries({
-                                local_file_id: localFileId,
-                                file_type: fileType,
-                                is_edited: String(isEdited === true),
-                                is_copy: String(isCopy === true),
-                                category_id: categoryId,
-                                parent_file_id: parentFileId
-                            }).filter(([, value]) => value !== null && value !== undefined)
+            const handleUpload = (
+                error,
+                result
+            ) => {
+
+                if (error) {
+
+                    reject(
+                        error
+                    );
+
+                    return;
+
+                }
+
+
+                if (!result) {
+
+                    reject(
+                        new Error(
+                            "Cloudinary upload failed"
                         )
+                    );
 
-                    },
+                    return;
 
-                    (
-                        error,
-                        result
-                    ) => {
-
-                        if (error) {
-
-                            reject(
-                                error
-                            );
-
-                            return;
-
-                        }
+                }
 
 
-                        if (!result) {
+                resolve(
+                    result
+                );
 
-                            reject(
-                                new Error(
-                                    "Cloudinary upload failed"
-                                )
-                            );
-
-                            return;
-
-                        }
+            };
 
 
-                        resolve(
-                            result
-                        );
+            const useChunkedUpload =
+                fileType === "video" &&
+                file.size >= 100 * 1024 * 1024;
 
+            const uploadStream = useChunkedUpload
+                ? cloudinary.uploader.upload_chunked_stream(
+                    handleUpload,
+                    {
+                        ...uploadOptions,
+                        chunk_size: 20 * 1024 * 1024
                     }
-
+                )
+                : cloudinary.uploader.upload_stream(
+                    uploadOptions,
+                    handleUpload
                 );
 
 

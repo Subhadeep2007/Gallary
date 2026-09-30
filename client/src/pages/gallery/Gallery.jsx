@@ -485,7 +485,7 @@ const Gallery = () => {
 
           <p className="mt-2 max-w-lg text-sm leading-6 text-slate-400">
             Upload images, videos and PDF documents. Your gallery is designed
-            for private storage and offline-friendly access.
+            for private storage and online-friendly access.
           </p>
 
           <button

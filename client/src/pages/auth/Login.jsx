@@ -290,7 +290,7 @@ const Login = () => {
                                 text-xs
                                 text-slate-500
                             ">
-                                Private. Local. Yours.
+                                Private. Local.cloudinay. Yours.
                             </p>
 
                         </div>
@@ -331,7 +331,7 @@ const Login = () => {
                                 "
                             />
 
-                            Your private offline gallery
+                            Your private online gallery
 
                         </div>
 
@@ -365,7 +365,7 @@ const Login = () => {
 
                             Store, organize and manage
                             your photos, videos and PDFs
-                            with an offline-first gallery
+                            with an online-first gallery
                             built around your device.
 
                         </p>
@@ -391,7 +391,7 @@ const Login = () => {
                                     text-sm
                                     font-semibold
                                 ">
-                                    Offline
+                                    Online
                                 </p>
 
                                 <p className="
@@ -425,7 +425,7 @@ const Login = () => {
                                     text-xs
                                     text-slate-500
                                 ">
-                                    Files stay on device
+                                    Files stay on cloud
                                 </p>
 
                             </div>
@@ -540,7 +540,7 @@ const Login = () => {
                                     text-xs
                                     text-slate-500
                                 ">
-                                    Private. Local. Yours.
+                                    Private. Local.cloudinay. Yours.
                                 </p>
 
                             </div>

@@ -2700,7 +2700,9 @@ const VideoEditor = () => {
 
 
                 const mongoFile =
-                    response?.data || response;
+                    response?.data?.data ||
+                    response?.data ||
+                    response;
 
 
                 if (
@@ -2802,16 +2804,18 @@ const VideoEditor = () => {
             if (cloudSynced) {
                 toast.success("Edited video saved as a new copy.");
             } else {
-                toast("Saved on this browser only; cloud upload is pending. Keep site data until sync completes.");
+                toast.error("Cloud upload is still pending. The edited video is kept here; do not clear browser storage until the retry succeeds.");
             }
 
 
             await loadVideoFiles();
 
 
-            setEditedFile(
-                null
-            );
+            if (cloudSynced) {
+                setEditedFile(
+                    null
+                );
+            }
 
         } catch (error) {
 

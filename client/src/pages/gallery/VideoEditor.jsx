@@ -40,6 +40,7 @@ import useAuth from "../../hooks/useAuth.js";
 import {
     addFile,
     getAllFiles,
+    getFileByLocalId,
     updateFileByLocalId
 } from "../../services/storage/db.js";
 
@@ -47,6 +48,8 @@ import {
     createFile,
     getFiles
 } from "../../services/file/file.service.js";
+
+import { syncPendingFiles } from "../../services/file/syncPendingFiles.js";
 
 
 // =========================================================
@@ -2705,7 +2708,10 @@ const VideoEditor = () => {
                     mongoFile._id
                 ) {
 
-                    cloudSynced = Boolean(mongoFile.fileUrl);
+                    cloudSynced = Boolean(
+                        mongoFile._id &&
+                        mongoFile.fileUrl
+                    );
 
                     await updateFileByLocalId(
                         localFileId,
@@ -2730,7 +2736,9 @@ const VideoEditor = () => {
                                 null,
 
                             syncStatus:
-                                "synced",
+                                cloudSynced
+                                    ? "synced"
+                                    : "pending",
 
                             updatedAt:
                                 new Date()
@@ -2769,6 +2777,25 @@ const VideoEditor = () => {
                             new Date()
                     }
                 );
+            }
+
+
+            if (!cloudSynced) {
+                // Retry the persisted edited file so a transient upload failure
+                // does not leave the only copy in this browser's IndexedDB.
+                try {
+                    await syncPendingFiles(userId);
+                    const savedFile = await getFileByLocalId(localFileId);
+                    cloudSynced = Boolean(
+                        savedFile?.mongoFileId &&
+                        savedFile?.fileUrl
+                    );
+                } catch (syncError) {
+                    console.error(
+                        "Immediate edited video sync retry failed:",
+                        syncError
+                    );
+                }
             }
 
 

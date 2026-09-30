@@ -2586,6 +2586,8 @@ const VideoEditor = () => {
 
 
         let cloudSynced = false;
+        let localSaved = false;
+        let cloudUploadError = "";
 
 
         try {
@@ -2609,58 +2611,35 @@ const VideoEditor = () => {
                 null;
 
 
-            await addFile({
-
-                localFileId,
-
-                userId,
-
-                fileName:
-                    file.name,
-
-                fileType:
-                    "video",
-
-                mimeType:
-                    file.type,
-
-                size:
-                    file.size,
-
-                fileData:
-                    file,
-
-                categoryId:
-                    selectedCategoryId,
-
-                isFavorite:
-                    false,
-
-                isDeleted:
-                    false,
-
-                deletedAt:
-                    null,
-
-                syncStatus:
-                    "pending",
-
-                parentFileId:
-                    selectedFile.mongoFileId ||
-                    null,
-
-                isCopy:
-                    false,
-
-                isEdited:
-                    true,
-
-                createdAt:
-                    new Date(),
-
-                updatedAt:
-                    new Date()
-            });
+            try {
+                await addFile({
+                    localFileId,
+                    userId,
+                    fileName: file.name,
+                    fileType: "video",
+                    mimeType: file.type,
+                    size: file.size,
+                    fileData: file,
+                    categoryId: selectedCategoryId,
+                    isFavorite: false,
+                    isDeleted: false,
+                    deletedAt: null,
+                    syncStatus: "pending",
+                    parentFileId: selectedFile.mongoFileId || null,
+                    isCopy: false,
+                    isEdited: true,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                });
+                localSaved = true;
+            } catch (localSaveError) {
+                // IndexedDB quota/storage errors must not prevent the actual
+                // Cloudinary upload from being attempted.
+                console.warn(
+                    "Could not cache edited video locally; continuing with cloud upload:",
+                    localSaveError
+                );
+            }
 
 
             try {
@@ -2715,53 +2694,59 @@ const VideoEditor = () => {
                         mongoFile.fileUrl
                     );
 
-                    await updateFileByLocalId(
-                        localFileId,
-                        {
-                            mongoFileId:
-                                mongoFile._id,
+                    if (localSaved) {
+                        await updateFileByLocalId(
+                            localFileId,
+                            {
+                                mongoFileId:
+                                    mongoFile._id,
 
-                            fileUrl:
-                                mongoFile.fileUrl ||
-                                null,
+                                fileUrl:
+                                    mongoFile.fileUrl ||
+                                    null,
 
-                            cloudinaryPublicId:
-                                mongoFile.cloudinaryPublicId ||
-                                null,
+                                cloudinaryPublicId:
+                                    mongoFile.cloudinaryPublicId ||
+                                    null,
 
-                            cloudinaryResourceType:
-                                mongoFile.cloudinaryResourceType ||
-                                null,
+                                cloudinaryResourceType:
+                                    mongoFile.cloudinaryResourceType ||
+                                    null,
 
-                            cloudinaryFormat:
-                                mongoFile.cloudinaryFormat ||
-                                null,
+                                cloudinaryFormat:
+                                    mongoFile.cloudinaryFormat ||
+                                    null,
 
-                            syncStatus:
-                                cloudSynced
-                                    ? "synced"
-                                    : "pending",
+                                syncStatus:
+                                    cloudSynced
+                                        ? "synced"
+                                        : "pending",
 
-                            updatedAt:
-                                new Date()
-                        }
-                    );
+                                updatedAt:
+                                    new Date()
+                            }
+                        );
+                    }
 
                 } else {
 
-                    await updateFileByLocalId(
-                        localFileId,
-                        {
-                            syncStatus:
-                                "pending",
-
-                            updatedAt:
-                                new Date()
-                        }
-                    );
+                    if (localSaved) {
+                        await updateFileByLocalId(
+                            localFileId,
+                            {
+                                syncStatus: "pending",
+                                updatedAt: new Date()
+                            }
+                        );
+                    }
                 }
 
             } catch (apiError) {
+
+                cloudUploadError =
+                    apiError?.response?.data?.message ||
+                    apiError?.message ||
+                    "Cloudinary upload failed.";
 
                 console.error(
                     "Edited video sync error:",
@@ -2769,20 +2754,19 @@ const VideoEditor = () => {
                 );
 
 
-                await updateFileByLocalId(
-                    localFileId,
-                    {
-                        syncStatus:
-                            "pending",
-
-                        updatedAt:
-                            new Date()
-                    }
-                );
+                if (localSaved) {
+                    await updateFileByLocalId(
+                        localFileId,
+                        {
+                            syncStatus: "pending",
+                            updatedAt: new Date()
+                        }
+                    );
+                }
             }
 
 
-            if (!cloudSynced) {
+            if (!cloudSynced && localSaved) {
                 // Retry the persisted edited file so a transient upload failure
                 // does not leave the only copy in this browser's IndexedDB.
                 try {
@@ -2804,7 +2788,12 @@ const VideoEditor = () => {
             if (cloudSynced) {
                 toast.success("Edited video saved as a new copy.");
             } else {
-                toast.error("Cloud upload is still pending. The edited video is kept here; do not clear browser storage until the retry succeeds.");
+                const localCopyMessage = localSaved
+                    ? " The edited video remains on this browser; do not clear its storage yet."
+                    : " The edited result remains open in the editor; do not leave or refresh this page. The browser could not cache it locally.";
+                toast.error(
+                    `Cloud upload failed: ${cloudUploadError || "No Cloudinary URL was returned."}${localCopyMessage}`
+                );
             }
 
 
